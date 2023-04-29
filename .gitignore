@@ -38,6 +38,7 @@ lib/**/*
 
 # ignore lock file
 yarn.lock
+pnpm-lock.yaml
 
 # VsCode
 .vscode
