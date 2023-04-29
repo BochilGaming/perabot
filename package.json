@@ -1,0 +1,45 @@
+{
+  "name": "perabot",
+  "version": "0.0.1",
+  "description": "",
+  "type": "module",
+  "main": "lib/index.mjs",
+  "scripts": {
+    "start": "ts-node --esm src/index.mts",
+    "compile": "tsc -p tsconfig.json",
+    "dev": "nodemon",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@adiwajshing/baileys": "github:WhiskeySockets/Baileys",
+    "@bochilteam/scraper": "4.0.22-alpha.0",
+    "@hapi/boom": "^10.0.0",
+    "awesome-phonenumber": "^4.1.0",
+    "chalk": "^5.2.0",
+    "got": "^12.5.3",
+    "human-readable": "^0.2.1",
+    "js-yaml": "^4.1.0",
+    "jsonc-parser": "^3.2.0",
+    "link-preview-js": "^3.0.4",
+    "node-cache": "^5.1.2",
+    "node-webpmux": "^3.1.3",
+    "pino": "^8.7.0",
+    "pino-pretty": "^9.1.1",
+    "qrcode-terminal": "^0.12.0",
+    "sanitize-filename": "^1.6.3",
+    "ts-node": "^10.9.1",
+    "url-regex": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "^18.16.1",
+    "nodemon": "^2.0.22",
+    "typescript": "^5.0.4"
+  },
+  "optionalDependencies": {
+    "wa-sticker-formatter": "^4.3.2"
+  }
+}

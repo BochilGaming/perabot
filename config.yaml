@@ -1,0 +1,11 @@
+owners:
+  - 
+    number: '6281319944687'
+    name: 'BG'
+    # If you type '/owner' and if isCreator is true, this number will be shown as the owner
+    isCreator: true
+  - 
+    number: '62xxx'
+sticker:
+  packname:
+  author:
