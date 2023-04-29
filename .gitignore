@@ -49,4 +49,4 @@ sessions
 store
 
 # Ignore generated file in tmp
-tmp/**
+#tmp/**
