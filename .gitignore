@@ -44,9 +44,9 @@ pnpm-lock.yaml
 .vscode
 
 # Data
-databases
-sessions
-store
+/databases
+/sessions
+/store
 
 # Ignore generated file in tmp
 tmp/**

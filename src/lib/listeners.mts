@@ -107,7 +107,11 @@ export default class Listeners {
             console.error(e)
             await m.reply(util.format(e))
         } finally {
-            await new Print(this.connection.sock, this.connection.store).print(m)
+            try {
+                await new Print(this.connection.sock, this.connection.store).print(m)
+            } catch (e) {
+                console.error(e, m, m.quoted)
+            }
         }
     }
 }

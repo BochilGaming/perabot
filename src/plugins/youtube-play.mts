@@ -6,6 +6,7 @@ export default class play implements CommandablePlugin {
     command = 'play'
     help = 'play'
     tags = ['youtube']
+    disabled = true
 
     async onCommand ({
         text,
