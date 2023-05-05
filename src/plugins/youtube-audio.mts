@@ -1,4 +1,4 @@
-import { youtubedl, youtubedlv2, youtubedlv3 } from '@bochilteam/scraper'
+import { youtubedl, youtubedlv2 } from '@bochilteam/scraper'
 import got, { Request } from 'got'
 import { CommandablePlugin, PluginCmdParam } from '../lib/plugins.mjs'
 
@@ -14,9 +14,7 @@ export default class yta implements CommandablePlugin {
         m
     }: PluginCmdParam) {
         const limitedSize = LIMIT * 1024
-        const { thumbnail, audio: _audio, title } = await youtubedl(args[0])
-            .catch(async _ => await youtubedlv2(args[0]))
-            .catch(async _ => await youtubedlv3(args[0]))
+        const { thumbnail, audio: _audio, title } = await youtubedlv2(args[0])
         let audio: typeof _audio[string], res: Request
         for (let i in _audio) {
             try {

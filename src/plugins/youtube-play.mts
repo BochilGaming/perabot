@@ -6,7 +6,6 @@ export default class play implements CommandablePlugin {
     command = 'play'
     help = 'play'
     tags = ['youtube']
-    disabled = true
 
     async onCommand ({
         text,
@@ -15,8 +14,16 @@ export default class play implements CommandablePlugin {
         m
     }: PluginCmdParam) {
         if (!text) throw `Use example ${usedPrefix}${command} Minecraft`
-        const video = (await youtubeSearch(text)).video[0]
-        if (!video) throw 'Video/Audio not found!'
+        let video: Awaited<ReturnType<typeof youtubeSearch>>['video'][number]
+        for (let i = 0; i < 5; i++) {
+            try {
+                video = (await youtubeSearch(text)).video[0]
+            } catch (e) {
+                console.error(e)
+                continue
+            }
+        }
+        if (!video!) throw 'Video/Audio not found!'
         const { title, description, thumbnail, videoId, durationH, viewH, publishedTime } = video
         const url = 'https://www.youtube.com/watch?v=' + videoId
         await m.reply({

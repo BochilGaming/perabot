@@ -15,7 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "@adiwajshing/baileys": "github:WhiskeySockets/Baileys",
-    "@bochilteam/scraper": "4.0.22-alpha.0",
+    "@bochilteam/scraper": "4.2.2",
     "@hapi/boom": "^10.0.0",
     "awesome-phonenumber": "^4.1.0",
     "chalk": "^5.2.0",

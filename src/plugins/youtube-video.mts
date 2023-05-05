@@ -1,4 +1,4 @@
-import { youtubedl, youtubedlv2, youtubedlv3 } from '@bochilteam/scraper'
+import { youtubedl, youtubedlv2 } from '@bochilteam/scraper'
 import got, { Request } from 'got'
 import { CommandablePlugin, PluginCmdParam } from '../lib/plugins.mjs'
 
@@ -15,8 +15,7 @@ export default class ytv implements CommandablePlugin {
     }: PluginCmdParam) {
         const limitedSize = LIMIT * 1024
         const { thumbnail, video: _video, title } = await youtubedl(args[0])
-            .catch(async _ => await youtubedlv2(args[0]))
-            .catch(async _ => await youtubedlv3(args[0]))
+            .catch(async _ => youtubedlv2(args[0]))
         let video: typeof _video[string], res: Request
         for (let i in _video) {
             try {
@@ -25,7 +24,7 @@ export default class ytv implements CommandablePlugin {
                 const isLimit = limitedSize < video.fileSize!
                 if (isLimit) continue
                 const link = await video.download()
-                if (link) res = got.stream(link, { responseType: 'buffer', https: { rejectUnauthorized: false} })
+                if (link) res = got.stream(link, { responseType: 'buffer', https: { rejectUnauthorized: false } })
                 break
             } catch (e) {
                 console.error(e)
