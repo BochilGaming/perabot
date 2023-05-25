@@ -35,18 +35,7 @@ export default class play implements CommandablePlugin {
 ⌚ *Duration:* ${durationH}
 👁️ *Views:* ${viewH}
 `.trim(),
-            image: { stream: got.stream(thumbnail, { responseType: 'buffer' }), },
-            buttons: [
-                {
-                    buttonId: `${usedPrefix}yta ${url}`,
-                    buttonText: { displayText: 'Audio 🎧' }
-                },
-                {
-                    buttonId: `${usedPrefix}ytv ${url}`,
-                    buttonText: { displayText: 'Video 🎥' }
-                }
-            ],
-            footer: '©fs-wabot',
+            image: { stream: got.stream(thumbnail, { responseType: 'buffer' }), }
         })
     }
 }

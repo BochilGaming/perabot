@@ -1,0 +1,1 @@
+Saya ingin membuat stiker dari gambar atau foto yang saya ambil langsung dengan kamera ponsel saya. Bisakah layanan pembuatan stiker di bot ini memproses gambar dari kamera ponsel saya?

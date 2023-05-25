@@ -6,7 +6,7 @@ PeraBot use [Baileys](https://github.com/WhiskeySockets/Baileys) to communicate 
 ```bash
 # Clone repository 
 git clone https://github.com/BochilGaming/perabot
-# Change directory to 'Perabot'
+# Change directory to 'perabot'
 cd perabot
 # Install depedency
 npm install

@@ -1,7 +1,21 @@
-import baileys, { AnyMessageContent, areJidsSameUser, Chat, Contact, downloadMediaMessage, extractMessageContent, getContentType, getDevice, jidDecode, jidNormalizedUser, MiscMessageGenerationOptions, proto as _proto, WASocket, WAProto } from '@adiwajshing/baileys'
+import baileys, {
+    AnyMessageContent,
+    areJidsSameUser,
+    Chat,
+    Contact,
+    downloadMediaMessage,
+    extractMessageContent,
+    getContentType,
+    getDevice,
+    jidDecode,
+    jidNormalizedUser,
+    MiscMessageGenerationOptions,
+    proto as _proto,
+    WASocket,
+    WAProto
+} from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import pino from 'pino'
-import { ChatPrivateStore } from '../store/chats.mjs'
 import Store from '../store/store.mjs'
 
 // @ts-ignore 
@@ -15,7 +29,9 @@ export interface HelperConn extends WASocket {
 export interface HelperMsg extends SerializedMsg {
     conn: HelperConn
     logger: pino.Logger
-    isCommand?: boolean | Error
+    isCommand?: boolean
+    plugin?: string
+    error?: Error
 }
 
 export interface SerializedMsg extends WAProto.WebMessageInfo {
@@ -65,12 +81,19 @@ export default class Helper {
                         const metadata = await store.fetchGroupMetadata(jid, sock.groupMetadata)
                         chat = { id: jid, name: metadata.subject }
                     } else {
-                        const c = await store.chats.get(jid) as ChatPrivateStore
-                        chat = { id: jid, name: c.name, verifiedName: c.name, notify: c.notify }
+                        const c = await store.chats.get(jid) || {}
+                        const name = 'name' in c && typeof c.name === 'string' ? c.name : undefined
+                        chat = {
+                            id: jid,
+                            name,
+                            verifiedName: name,
+                            notify: 'notify' in c && typeof c.notify === 'string' ? c.notify : undefined
+                        }
                     }
                 }
                 const user = jidDecode(jid)
-                if (!user) console.error(`'user' is undefined`, user, jid)
+                if (!user)
+                    throw new Error(`'user' of ${jid} is undefined`)
                 return 'verifiedName' in chat && typeof chat.verifiedName === 'string' ? chat.verifiedName
                     : 'notify' in chat && typeof chat.notify === 'string' ? chat.notify
                         : 'name' in chat && typeof chat.name === 'string' ? chat.name
@@ -200,128 +223,132 @@ export default class Helper {
                     const text = typeof q === 'string' ? q
                         : q && 'text' in q && q.text ? q.text
                             : ''
-
-                    return (Object as ModifiedObjectConstructor).defineProperties<unknown, QuotedSerializedMsg>(
-                        JSON.parse(JSON.stringify(typeof q === 'string' ? { text } : q)), {
-                        id: {
-                            get () {
-                                return contextInfo.stanzaId!
+                    try {
+                        return (Object as ModifiedObjectConstructor).defineProperties<unknown, QuotedSerializedMsg>(
+                            JSON.parse(JSON.stringify(typeof q === 'string' ? { text } : q)), {
+                            id: {
+                                get () {
+                                    return contextInfo.stanzaId!
+                                },
+                                enumerable: true
                             },
-                            enumerable: true
-                        },
-                        chat: {
-                            get () {
-                                return contextInfo.remoteJid || self.chat
+                            chat: {
+                                get () {
+                                    return contextInfo.remoteJid || self.chat
+                                },
+                                enumerable: true
                             },
-                            enumerable: true
-                        },
-                        isBaileys: {
-                            get () {
-                                return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id.length === 12 || false
+                            isBaileys: {
+                                get () {
+                                    return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id.length === 12 || false
+                                },
+                                enumerable: true
                             },
-                            enumerable: true
-                        },
-                        sender: {
-                            get () {
-                                return jidNormalizedUser(contextInfo.participant || this.chat || '')
+                            sender: {
+                                get () {
+                                    return jidNormalizedUser(contextInfo.participant || this.chat || '')
+                                },
+                                enumerable: true
                             },
-                            enumerable: true
-                        },
-                        fromMe: {
-                            get () {
-                                return areJidsSameUser(this.sender, self.conn?.user?.id)
+                            fromMe: {
+                                get () {
+                                    return areJidsSameUser(this.sender, self.conn?.user?.id)
+                                },
+                                enumerable: true,
                             },
-                            enumerable: true,
-                        },
-                        sentSource: {
-                            get () {
-                                return getDevice(this.sender)
+                            sentSource: {
+                                get () {
+                                    return getDevice(this.sender)
+                                }
+                            },
+                            text: {
+                                get () {
+                                    return text ||
+                                        (q && typeof q !== 'string' && 'caption' in q && q.caption ? q.caption
+                                            : q && typeof q !== 'string' && 'contentText' in q && q.contentText ? q.contentText
+                                                : q && typeof q !== 'string' && 'selectedDisplayText' in q && q.selectedDisplayText ? q.selectedDisplayText
+                                                    : '')
+                                },
+                                enumerable: true
+                            },
+                            mentionedJid: {
+                                get () {
+                                    return q && typeof q !== 'string' && 'contextInfo' in q && q.contextInfo?.mentionedJid?.length ? q.contextInfo.mentionedJid
+                                        : []
+                                },
+                                enumerable: true
+                            },
+                            fakeObj: {
+                                get () {
+                                    return proto.WebMessageInfo.fromObject({
+                                        key: {
+                                            fromMe: this.fromMe,
+                                            remoteJid: this.chat,
+                                            id: this.id
+                                        },
+                                        message: quoted,
+                                        ...(self.isGroup ? { participant: this.sender } : {})
+                                    })
+                                }
+                            },
+                            msg: {
+                                get () {
+                                    return q
+                                }
+                            },
+                            mtype: {
+                                get () {
+                                    return type || ''
+                                },
+                                enumerable: true
+                            },
+                            mediaMessage: {
+                                get () {
+                                    if (typeof q === 'string')
+                                        return null
+                                    const Message = (
+                                        (('url' in q && q.url) ||
+                                            ('directPath' in q && q.directPath)) ? { ...quoted } : extractMessageContent(quoted)
+                                    )
+                                    if (!Message)
+                                        return null
+                                    const mtype = getContentType(Message)!
+                                    return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(Message) : null
+                                },
+                                enumerable: true
+                            },
+                            mediaType: {
+                                get () {
+                                    let message = this.mediaMessage
+                                    if (!message)
+                                        return null
+                                    return Object.keys(message)[0]
+                                },
+                                enumerable: true,
+                            },
+                            reply: {
+                                value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']> {
+                                    // if msg is string convert to AnyMessageContent['text']
+                                    if (typeof msg === 'string')
+                                        msg = { text: msg }
+                                    return self.conn!.reply(jid || this.chat, msg, this.fakeObj, options)
+                                }
+                            },
+                            download: {
+                                value () {
+                                    return downloadMediaMessage(this.fakeObj, 'buffer', {}, {
+                                        // @ts-ignore
+                                        logger: self.logger!.child({ class: 'download' }),
+                                        reuploadRequest: self.conn!.updateMediaMessage
+                                    }) as Promise<Buffer>
+                                },
+                                enumerable: true
                             }
-                        },
-                        text: {
-                            get () {
-                                return text ||
-                                    (q && typeof q !== 'string' && 'caption' in q && q.caption ? q.caption
-                                        : q && typeof q !== 'string' && 'contentText' in q && q.contentText ? q.contentText
-                                            : q && typeof q !== 'string' && 'selectedDisplayText' in q && q.selectedDisplayText ? q.selectedDisplayText
-                                                : '')
-                            },
-                            enumerable: true
-                        },
-                        mentionedJid: {
-                            get () {
-                                return q && typeof q !== 'string' && 'contextInfo' in q && q.contextInfo?.mentionedJid?.length ? q.contextInfo.mentionedJid
-                                    : []
-                            },
-                            enumerable: true
-                        },
-                        fakeObj: {
-                            get () {
-                                return proto.WebMessageInfo.fromObject({
-                                    key: {
-                                        fromMe: this.fromMe,
-                                        remoteJid: this.chat,
-                                        id: this.id
-                                    },
-                                    message: quoted,
-                                    ...(self.isGroup ? { participant: this.sender } : {})
-                                })
-                            }
-                        },
-                        msg: {
-                            get () {
-                                return q
-                            }
-                        },
-                        mtype: {
-                            get () {
-                                return type || ''
-                            },
-                            enumerable: true
-                        },
-                        mediaMessage: {
-                            get () {
-                                if (typeof q === 'string')
-                                    return null
-                                const Message = (
-                                    (('url' in q && q.url) ||
-                                        ('directPath' in q && q.directPath)) ? { ...quoted } : extractMessageContent(quoted)
-                                )
-                                if (!Message)
-                                    return null
-                                const mtype = getContentType(Message)!
-                                return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(Message) : null
-                            },
-                            enumerable: true
-                        },
-                        mediaType: {
-                            get () {
-                                let message = this.mediaMessage
-                                if (!message)
-                                    return null
-                                return Object.keys(message)[0]
-                            },
-                            enumerable: true,
-                        },
-                        reply: {
-                            value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']> {
-                                // if msg is string convert to AnyMessageContent['text']
-                                if (typeof msg === 'string')
-                                    msg = { text: msg }
-                                return self.conn!.reply(jid || this.chat, msg, this.fakeObj, options)
-                            }
-                        },
-                        download: {
-                            value () {
-                                return downloadMediaMessage(this.fakeObj, 'buffer', {}, {
-                                    // @ts-ignore
-                                    logger: self.logger!.child({ class: 'download' }),
-                                    reuploadRequest: self.conn!.updateMediaMessage
-                                }) as Promise<Buffer>
-                            },
-                            enumerable: true
-                        }
-                    }) as QuotedSerializedMsg
+                        }) as QuotedSerializedMsg
+                    } catch (e) {
+                        console.error(e, type, q, quoted)
+                        return null
+                    }
                 },
                 enumerable: true
             },

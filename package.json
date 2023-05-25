@@ -14,9 +14,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@adiwajshing/baileys": "github:WhiskeySockets/Baileys",
-    "@bochilteam/scraper": "4.2.2",
+    "@bochilteam/scraper": "4.2.3",
     "@hapi/boom": "^10.0.0",
+    "@tensorflow/tfjs-node": "^4.6.0",
+    "@whiskeysockets/baileys": "^6.0.1",
     "awesome-phonenumber": "^4.1.0",
     "chalk": "^5.2.0",
     "got": "^12.5.3",
@@ -24,14 +25,14 @@
     "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.2.0",
     "link-preview-js": "^3.0.4",
-    "node-cache": "^5.1.2",
     "node-webpmux": "^3.1.3",
-    "pino": "^8.7.0",
-    "pino-pretty": "^9.1.1",
+    "pino": "^8.14.1",
+    "pino-pretty": "^9.4.0",
     "qrcode-terminal": "^0.12.0",
     "sanitize-filename": "^1.6.3",
     "ts-node": "^10.9.1",
-    "url-regex": "^5.0.0"
+    "url-regex": "^5.0.0",
+    "zod": "^3.21.4"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.5",

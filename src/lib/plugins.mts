@@ -1,27 +1,20 @@
-import { BaileysEventMap, GroupMetadata, GroupParticipant } from '@adiwajshing/baileys'
-import child_process from 'child_process'
+import { BaileysEventMap, GroupMetadata, GroupParticipant } from '@whiskeysockets/baileys'
 import fs from 'fs'
-import { parse } from 'jsonc-parser'
 import path from 'path'
-import { promisify } from 'util'
 import CJS from './cjs.mjs'
-import Connection, { LOGGER } from './connection.mjs'
+import Connection from './connection.mjs'
 import { HelperConn, HelperMsg } from './helper.mjs'
-import { PermissionsFlags } from './permissions.mjs'
-
-const __dirname = CJS.createDirname(import.meta)
-
-const typescriptConfig: Object = parse(await fs.promises.readFile('./tsconfig.json', 'utf-8'))
-const outDir = 'compilerOptions' in typescriptConfig && typeof typescriptConfig.compilerOptions === 'object' && typescriptConfig.compilerOptions
-    && 'outDir' in typescriptConfig.compilerOptions && typeof typescriptConfig.compilerOptions.outDir === 'string' ?
-    typescriptConfig.compilerOptions.outDir : './lib'
-
-const basePath = path.join(__dirname, '../../')
-const typescriptFolder = path.join(basePath, './src')
-const compiledTypescriptFolder = path.join(basePath, outDir)
+import PermissionManager, { PermissionsFlags } from './permissions.mjs'
+import CommandManager from './command.mjs'
+import { LOGGER } from './logger.mjs'
+import assert from 'assert'
 
 
-const exec = promisify(child_process.exec).bind(child_process)
+interface AddFolderOptions {
+    /** if `recursive` is true, it will not only read files in that folder but also read files from child folders 
+     * @default false */
+    recursive?: boolean
+}
 
 export default class Plugins {
     folders = new Set<string>()
@@ -33,7 +26,10 @@ export default class Plugins {
         this.logger = _logger.child({ class: 'plugin' })
     }
 
-    async addFolder (folder: string) {
+    async addFolder (folder: string, opts: AddFolderOptions = {}) {
+        if (opts.recursive)
+            assert.ok(typeof opts.recursive === 'boolean', `'recursive' option must be type boolean, but got ${typeof opts.recursive}`)
+
         if (!fs.existsSync(folder)) return this.logger.error(`folder ${folder} not found!`)
         if (!fs.lstatSync(folder).isDirectory()) return this.logger.error(`${folder} is not a directory!`)
 
@@ -45,9 +41,16 @@ export default class Plugins {
 
         // Read files from that folder/directory
         const files = await fs.promises.readdir(folder)
-        const loaded = files.map((file) => {
+        const loaded = files.map(async (file) => {
             const filename = path.join(resolved, file)
-            return this.addPlugin(filename)
+            if (opts.recursive) {
+                const stats = await fs.promises.stat(filename)
+                if (stats.isDirectory())
+                    // add child folder
+                    return await this.addFolder(filename, opts)
+            }
+            // add plugin file
+            return await this.addPlugin(filename)
         })
 
         // Watch the file if it is being changed
@@ -84,7 +87,7 @@ export default class Plugins {
                     this.plugins.delete(file)
                     isDeleted = true
                 }
-            // if plugin doesn't exist in saved list -- file is new
+                // if plugin doesn't exist in saved list -- file is new
             } else this.logger.info(`new plugin - ${file}`)
             try {
                 // If plugin file is not deleted
@@ -107,47 +110,6 @@ export default class Plugins {
                 this._reloadQueue.delete(filename)
             }
         })
-    }
-
-    private async addFolderTypeScript (folder: string) {
-        if (!fs.existsSync(folder)) return this.logger.error(`Trying to add ${folder} as Typescript Folder but not found!`)
-        const resolved = path.resolve(folder)
-
-        const controller = new AbortController()
-        let isCompiling = false
-        const watcher = fs.watch(resolved, async (event, filename) => {
-            if (!this.typescriptFilter(filename)) return
-            const promises: Promise<any>[] = []
-            // file without file:// prefix
-            let file = path.join(resolved, filename)
-            // file not exist, maybe was renamed or deleted
-            const fileExist = fs.existsSync(file)
-            if (!fileExist) {
-                this.logger.warn(`deleted typescript plugin - ${file}`)
-                // delete compiled file
-                const compiledFile = path.join(compiledTypescriptFolder, file
-                    .replace(new RegExp('^(' + typescriptFolder.replace(/\\/g, '\\\\') + ')'), ''))
-                    // replace file extension from '.mts' to '.mjs'
-                    .replace(/(\.mts)$/, '.mjs')
-                promises.push(fs.promises.unlink(compiledFile))
-            } else promises.push(Promise.resolve())
-            if (isCompiling) controller.abort('Aborting compile typescript because new update has been made...')
-            // run tsc command
-            this.logger.info(`Compiling typescript plugins for update...`)
-            isCompiling = true
-            promises.push(exec('npx tsc -p tsconfig.plugins.json', {
-                cwd: basePath,
-                signal: controller.signal
-            }))
-
-            const [_, { stdout, stderr }] = await Promise.all(promises) as [void, Awaited<child_process.PromiseWithChild<{ stdout: string; stderr: string; }>>]
-            isCompiling = false
-            if (stdout.trim()) console.log(stdout)
-            if (stderr.trim()) console.error(stderr)
-
-            this.logger.info(`Done Compiling typescript plugins...`)
-        })
-
     }
 
     private async addPlugin (filename: string) {
@@ -178,41 +140,68 @@ export default class Plugins {
 
 }
 
-export interface CommandablePlugin {
+export interface PluginBase {
+    disabled?: boolean
+}
+export interface CommandablePlugin extends PluginBase {
     command: string | RegExp | (string | RegExp)[]
     customPrefix?: string | RegExp | (string | RegExp)[]
     help: string[] | string
     tags?: string[]
     permissions?: PermissionsFlags[] | PermissionsFlags
     onCommand (param: PluginCmdParam): Promise<void> | void
-    disabled?: boolean
 }
-
-export interface MessageablePlugin {
+export interface MessageablePlugin extends PluginBase {
     onMessage (param: PluginMsgParam): Promise<void> | void
-    disabled?: boolean
 }
+export interface BeforeableCommand extends PluginBase {
+    beforeCommand (param: PluginBeforeCmdParam): void
+}
+export type Plugin = CommandablePlugin | MessageablePlugin | MessageablePlugin
 
-export type Plugin = CommandablePlugin | MessageablePlugin
-
-export interface PluginMsgParam {
-    chatUpdate: BaileysEventMap['messages.upsert']
+export interface PluginBaseParam {
     connection: Required<Connection>
     conn: HelperConn
     m: HelperMsg
 }
-export interface PluginCmdParam {
+export interface PluginMsgParam extends PluginBaseParam {
+    chatUpdate: BaileysEventMap['messages.upsert']
+
+    permissionManager: PermissionManager
+    groupMetadata: GroupMetadata | undefined
+    participants: GroupParticipant[]
+    isOwner: boolean
+    isAdmin: boolean
+    isBotAdmin: boolean
+}
+export interface PluginBeforeCmdParam extends PluginBaseParam {
+    chatUpdate: BaileysEventMap['messages.upsert']
+
+    commandManager: CommandManager
+    matchesPrefix: ReturnType<CommandManager['matchesPrefix']>
+
+    permissionManager: PermissionManager
+    groupMetadata: GroupMetadata | undefined
+    participants: GroupParticipant[]
+    isOwner: boolean
+    isAdmin: boolean
+    isBotAdmin: boolean
+}
+export interface PluginCmdParam extends PluginBaseParam {
     conn: HelperConn
     m: HelperMsg
 
+    commandManager: CommandManager
     command: string
     usedPrefix: string
     noPrefix: string
-    text: string,
+    text: string
     args: string[]
 
+    permissionManager: PermissionManager
     groupMetadata: GroupMetadata | undefined
     participants: GroupParticipant[]
+    isOwner: boolean
     isAdmin: boolean
     isBotAdmin: boolean
 }

@@ -1,3 +1,4 @@
+import { PermissionsFlags } from '../lib/permissions.mjs'
 import { CommandablePlugin, PluginCmdParam } from '../lib/plugins.mjs'
 
 const LINK_REGEX = /chat.whatsapp.com\/([0-9A-Za-z]{20,24})/i
@@ -6,6 +7,8 @@ export default class join implements CommandablePlugin {
     command = 'join'
     help = 'join <link>'
     tags = ['main']
+
+    permissions = PermissionsFlags.Premium
 
     async onCommand ({ 
         usedPrefix,

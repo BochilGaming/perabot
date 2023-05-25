@@ -1,4 +1,4 @@
-import { areJidsSameUser, generateWAMessage, MessageUpsertType, WAProto } from '@adiwajshing/baileys'
+import { areJidsSameUser, generateWAMessage, MessageUpsertType, WAProto } from '@whiskeysockets/baileys'
 import { plugin, PREFIX } from '../index.mjs'
 import CommandManager from '../lib/command.mjs'
 import { MessageablePlugin, PluginMsgParam } from '../lib/plugins.mjs'

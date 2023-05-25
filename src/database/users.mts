@@ -1,9 +1,25 @@
-import { jidNormalizedUser } from '@adiwajshing/baileys'
-import { data, Database, IData, IDatabase, QueueOperation } from './database.mjs'
+import { jidNormalizedUser } from '@whiskeysockets/baileys'
+import { data, Database, IData, IDatabase } from './database.mjs'
 import sanitize from 'sanitize-filename'
-import path from 'path'
+import { z } from 'zod'
+import DBKeyedMutex, { ActionType } from './mutex.mjs'
+import { LOGGER } from '../lib/logger.mjs'
 
-export class UserData extends data implements IData {
+const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'databases-users' }))
+
+export class UserData extends data implements IData, z.infer<typeof UserData._schema> {
+    static readonly _schema = z.object({
+        level: z.number().min(0).default(0),
+        xp: z.number().min(0).default(0),
+        limit: z.number().min(0).default(10),
+
+        permission: z.number().min(0).default(0),
+        banned: z.boolean().default(false),
+
+        afk: z.number().default(-1),
+        afkReason: z.string().default('')
+    })
+
     level = 0
     xp = 0
     limit = 10
@@ -18,32 +34,29 @@ export class UserData extends data implements IData {
         super(file, db)
         this.create(obj)
     }
-    create (obj?: Object | null | undefined) {
-        if (obj) {
-            if ('level' in obj && typeof obj.level === 'number') this.level = obj.level
-            if ('xp' in obj && typeof obj.xp === 'number') this.xp = obj.xp
-            if ('limit' in obj && typeof obj.limit === 'number') this.limit = obj.limit
-            if ('permission' in obj && typeof obj.permission === 'number') this.permission = obj.permission
-            if ('banned' in obj && typeof obj.banned === 'boolean') this.banned = obj.banned
-            if ('afk' in obj && typeof obj.afk === 'number') this.afk = obj.afk
-            if ('afkReason' in obj && typeof obj.afkReason === 'string') this.afkReason = obj.afkReason
+    create (obj?: Object | null | undefined, skipChecking = false) {
+        const data = UserData._schema.partial().nullish().parse(obj) || {}
+        for (const key in data) {
+            if (data == undefined) continue
+            if (!(key in this))
+                console.warn(`Property ${key} doesn't exist in '${UserData.name}', but trying to insert with ${data}`)
+            // @ts-ignore
+            this[key] = data[key]
         }
     }
     verify () {
-        if (typeof this.level !== 'number') this.level = 0
-        if (typeof this.xp !== 'number') this.xp = 0
-        if (typeof this.limit !== 'number') this.limit = 10
-        if (typeof this.permission !== 'number') this.permission = 0
-        if (typeof this.banned !== 'boolean') this.banned = false
-        if (typeof this.afk !== 'number') this.afk = -1
-        if (typeof this.afkReason !== 'string') this.afkReason = ''
+        return UserData._schema.parse(this)
     }
+
     async save () {
-        await this.db.queue.waitQueue(this.file)
-        this.db.queue.addQueue(this.file, QueueOperation.Write)
-        this.verify()
-        await super.save(this)
-        this.db.queue.removeQueue(this.file, QueueOperation.Write)
+        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this, this._save.bind(this))
+    }
+    async _save () {
+        await this._db.save(this._filename, this.verify())
+    }
+
+    saveSync () {
+        this._db.saveSync(this._filename, this.verify())
     }
 }
 export class UsersDatabase extends Database implements IDatabase<UserData> {
@@ -58,12 +71,12 @@ export class UsersDatabase extends Database implements IDatabase<UserData> {
     }
     async get (user: string) {
         const filename = sanitize(jidNormalizedUser(user))
-        await this.queue.waitQueue(filename)
-        this.queue.addQueue(filename, QueueOperation.Read)
-        const file = path.join(this.folder, filename)
-        const data = new UserData(file, this)
+        return await keyedMutex.mutex(filename, ActionType.READ, this, this._get.bind(this, filename))
+    }
+
+    async _get (filename: string) {
+        const data = new UserData(filename, this)
         data.create(await this.read(filename))
-        this.queue.removeQueue(filename, QueueOperation.Read)
         return data
     }
 }

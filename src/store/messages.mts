@@ -1,13 +1,46 @@
-import baileys, { proto as _proto } from '@adiwajshing/baileys'
+import baileys, { proto as _proto } from '@whiskeysockets/baileys'
 import sanitize from 'sanitize-filename'
-import path from 'path'
-import { data, Database, IData, IDatabase, QueueOperation } from '../database/database.mjs'
+import { data, Database, IData, IDatabase } from '../database/database.mjs'
+import DBKeyedMutex, { ActionType } from '../database/mutex.mjs'
+import { LOGGER } from '../lib/logger.mjs'
 
 // @ts-ignore 
 const proto: typeof _proto = baileys.proto
+const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'store-messages' }))
 
 export class MessageStore extends data implements IData, _proto.IWebMessageInfo {
-    key!: _proto.WebMessageInfo['key']
+    // static readonly _keySchema = z.object({
+    //     remoteJid: z.string().nullish(),
+    //     fromMe: z.boolean().nullish(),
+    //     id: z.string().nullish(),
+    //     participant: z.string().nullish()
+    // })
+    // static readonly _schema = z.object({
+    //     key: MessageStore._keySchema,
+    //     message: z.record(z.any()).nullish(),
+    //     messageTimestamp: z.bigint().or(z.number()).nullish(),
+    //     participant: z.string().nullish(),
+    //     messageStubType: z.number().nullish(),
+    //     messageStubParameters: z.array(z.string()).nullish(),
+    //     labels: z.array(z.string()).nullish(),
+    //     userReceipt: z.array(z.object({
+    //         userJid: z.string(),
+    //         receiptTimestamp: z.bigint().or(z.number()).nullish(),
+    //         readTimestamp: z.bigint().or(z.number()).nullish(),
+    //         playedTimestamp: z.bigint().or(z.number()).nullish(),
+    //         pendingDeviceJid: z.array(z.string()).nullish(),
+    //         deliveredDeviceJid: z.array(z.string()).nullish(),
+    //     })).nullish(),
+    //     reactions: z.array(z.object({
+    //         key: MessageStore._keySchema.nullish(),
+    //         text: z.string().nullish(),
+    //         groupingKey: z.string().nullish(),
+    //         senderTimestampMs: z.bigint().or(z.number()).nullish(),
+    //         unread: z.boolean().nullish()
+    //     })).nullish()
+    // })
+
+    key!: _proto.IMessageKey
     message?: _proto.WebMessageInfo['message']
     messageTimestamp?: _proto.WebMessageInfo['messageTimestamp']
     participant?: _proto.WebMessageInfo['participant']
@@ -40,32 +73,36 @@ export class MessageStore extends data implements IData, _proto.IWebMessageInfo 
     }
 
     verify () {
-        this.create(this)
+        return proto.WebMessageInfo.toObject(proto.WebMessageInfo.fromObject(this))
     }
 
     async save () {
-        await this.db.queue.waitQueue(this.file)
-        this.db.queue.addQueue(this.file, QueueOperation.Write)
-        await super.save(this)
-        this.db.queue.removeQueue(this.file, QueueOperation.Write)
+        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this, this._save.bind(this))
+    }
+
+    async _save () {
+        await this._db.save(this._filename, this.verify())
+    }
+
+    saveSync () {
+        throw new Error('Method not implemented.')
     }
 }
 
 export class MessagesStore extends Database implements IDatabase<MessageStore> {
-    constructor(folder: string) {
+    constructor(folder: string = './store/messages') {
         super(folder)
     }
 
     async insert (id: string, data: Object | MessageStore, ifAbsent?: boolean) {
         const filename = sanitize(id)
-        const file = this._getFilePath(filename)
         // Only insert if absent, if present just return
         if (ifAbsent && this.has(filename)) return false
         if (data instanceof MessageStore) {
             await data.save()
             return true
         }
-        await new MessageStore(file, this, data)
+        await new MessageStore(filename, this, data)
             .save()
         return true
     }
@@ -87,12 +124,12 @@ export class MessagesStore extends Database implements IDatabase<MessageStore> {
 
     async get (id: string) {
         const filename = sanitize(id)
-        await this.queue.waitQueue(filename)
-        this.queue.addQueue(filename, QueueOperation.Read)
-        const file = path.join(this.folder, filename)
+        return await keyedMutex.mutex(id, ActionType.READ, this, this._get.bind(this, filename))
+    }
+
+    async _get (filename: string) {
         const data = await this.read(filename)
-        const msg = new MessageStore(file, this, data)
-        this.queue.removeQueue(filename, QueueOperation.Read)
+        const msg = new MessageStore(filename, this, data)
         return msg
     }
 }

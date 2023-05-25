@@ -20,7 +20,7 @@ export const plugin = new Plugins()
 await config.load()
 Promise.all([
     conn.start(),
-    plugin.addFolder(path.join(__dirname, './plugins'))
+    plugin.addFolder(path.join(__dirname, './plugins'), { recursive: true })
 ]).then(() => {
     console.info(plugin.plugins.entries())
 })

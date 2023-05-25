@@ -2,14 +2,14 @@
 // WARNING: Change this can make permissions feature not working!
 // first 10 bit can be for making separate permission like kick, add, etc.
 export enum PermissionsFlags {
-    Banned = -1,
+    Banned = 0,
     Member = 1 << 10,
     Admin = (1 << 1) | PermissionsFlags.Member,
     // only 1 higher from PermissionsFlags.Admin :v
     BotAdmin = 0b11 | PermissionsFlags.Member,
     // they also have the permission of the lower ranks
     Premium = (1 << 10 << 1) | PermissionsFlags.Member,
-    Moderator = (1 << 10 << 4) | PermissionsFlags.Member,
+    Moderator = (1 << 10 << 4) | PermissionsFlags.Premium,
     Host = (1 << 10 << 5) | PermissionsFlags.Moderator,
     Owner = (1 << 10 << 6) | PermissionsFlags.Host
 }
@@ -43,7 +43,7 @@ export default class PermissionManager {
         if (!Array.isArray(expectedPermissions)) expectedPermissions = [expectedPermissions]
         const invalidPermissions = expectedPermissions.map((permission) => {
             // if user permission is 0001 and expected permission is 0001 it will be given 0001
-            // but if  user permission is 0001 and expected permission is 0010 it will be given 0000
+            // but if user permission is 0001 and expected permission is 0010 it will be given 0000
             // that means if zero it doesn't have that permission
             if ((permission & this.permission) !== 0) return
             return permission

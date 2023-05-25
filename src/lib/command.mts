@@ -3,13 +3,38 @@ import { CommandablePlugin } from './plugins.mjs'
 const str2Regex = (str: string) => str.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
 
 export default class CommandManager {
-
+    protected prefix?: CommandablePlugin['customPrefix']
+    protected command?: CommandablePlugin['command']
     constructor(
-        public prefix: CommandablePlugin['customPrefix'],
-        public command: CommandablePlugin['command']
-    ) { }
+        prefix?: CommandablePlugin['customPrefix'],
+        command?: CommandablePlugin['command']
+    ) {
+        if (prefix)
+            this.setPrefix(prefix)
+        if (command)
+            this.setCommand(command)
+    }
+
+    setPrefix (prefix: CommandablePlugin['customPrefix']) {
+        if (!(typeof prefix === 'string' || prefix instanceof RegExp)) {
+            if (!Array.isArray(prefix) || prefix.find((v) => !(typeof v === 'string' || v instanceof RegExp)))
+                throw new Error(`Invalid prefix ${prefix} parameter`)
+        }
+        this.prefix = prefix
+    }
+
+    setCommand (command: CommandablePlugin['command']) {
+        if (!(typeof command === 'string' || command instanceof RegExp)) {
+            if (!Array.isArray(command) || command.find((v) => !(typeof v === 'string' || v instanceof RegExp)))
+                throw new Error(`Invalid command ${command} parameter`)
+        }
+        this.command = command
+    }
 
     matchesPrefix (text: string) {
+        if (!this.prefix)
+            throw new Error(`You have to initialize the prefix with 'setPrefix' first`)
+
         let match = ((this.prefix instanceof RegExp ? // RegExp Mode?
             [[this.prefix.exec(text), this.prefix]] :
             Array.isArray(this.prefix) ? // Array?
@@ -26,9 +51,14 @@ export default class CommandManager {
             .find(p => p[1]) as [RegExpExecArray | null, RegExp] | undefined
         return match
     }
-    isCommand (_text: string) {
-        const match = this.matchesPrefix(_text)
+    isCommand (
+        _text: string,
+        match?: ReturnType<typeof this.matchesPrefix>
+    ) {
+        if (!this.command)
+            throw new Error(`You have to initialize the command with 'setCommand' first`)
 
+        match ||= this.matchesPrefix(_text)
         const usedPrefix = (match?.[0] || [])[0]
         if (usedPrefix) {
             const noPrefix = _text.replace(usedPrefix, '')

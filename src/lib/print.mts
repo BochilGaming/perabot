@@ -1,4 +1,4 @@
-import { jidDecode, WAMessageStubType, WAProto } from '@adiwajshing/baileys'
+import { jidDecode, WAMessageStubType, WAProto } from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import urlRegex from 'url-regex'
 import chalk from 'chalk'
@@ -73,9 +73,11 @@ ${chalk.green('%s')} ${chalk.blueBright('to')} ${chalk.green('%s')} ${chalk.blac
                     log = log.replace('@' + jidDecode(user)!.user, chalk.blueBright('@' + this.conn.getName(user)))
                 )))
 
-            console.log(m.isCommand! instanceof Error ? chalk.red(log) : m.isCommand ? chalk.yellow(log) : log)
+            console.log(m.error! instanceof Error ? chalk.red(log) : m.isCommand ? chalk.yellow(log) : log)
         }
-        if (m.messageStubParameters.length && m.messageStubType != WAProto.WebMessageInfo.StubType.REVOKE) console.log(
+        if (m.messageStubParameters.length 
+            && m.messageStubType != WAProto.WebMessageInfo.StubType.REVOKE 
+            && m.messageStubType != WAProto.WebMessageInfo.StubType.CIPHERTEXT) console.log(
             (await Promise.all(m.messageStubParameters.map(async (jid) => {
                 let name = await this.conn.getName(jid)
                 return chalk.gray(formatJidNumber(jid) + (name ? ' ~' + name : ''))

@@ -62,14 +62,13 @@ export default class menu implements CommandablePlugin {
             second: 'numeric'
         })
 
+        const unorderedTags = JSON.parse(JSON.stringify(TAGS))
         const helps = ([...plugin.plugins.entries()]
             .filter(([_, plugin]) => !plugin.disabled && 'onCommand' in plugin && typeof plugin.onCommand === 'function') as [string, CommandablePlugin][])
             .map(([_, plugin]) => {
-                const unorderedTags = JSON.parse(JSON.stringify(TAGS))
 
                 if ('tags' in plugin && Array.isArray(plugin.tags))
                     for (const tag of plugin.tags)
-                        
                         if (!(tag in unorderedTags)) unorderedTags[tag] = tag
 
                 // Object.keys(unorderedTags).sort().reduce((_: { [Key: string]: string }, key) => {
@@ -105,8 +104,8 @@ export default class menu implements CommandablePlugin {
 
             const text = [
                 before,
-                ...Object.keys(TAGS).map((tag) =>
-                    header.replace(/%category/g, TAGS[tag]) + '\n' + [
+                ...Object.keys(unorderedTags).map((tag) =>
+                    header.replace(/%category/g, unorderedTags[tag]) + '\n' + [
                         ...helps.filter((help) => help.tags.includes(tag)).map((menu) =>
                             menu.help.map((help) =>
                                 body.replace(/%cmd/g, menu.prefix ? help : ('%p' + help))
