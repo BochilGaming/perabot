@@ -70,7 +70,7 @@ ${chalk.green('%s')} ${chalk.blueBright('to')} ${chalk.green('%s')} ${chalk.blac
             log = log.replace(mdRegex, mdFormat(4))
             if (m.mentionedJid.length)
                 await Promise.all(m.mentionedJid.map(async (user) => (
-                    log = log.replace('@' + jidDecode(user)!.user, chalk.blueBright('@' + this.conn.getName(user)))
+                    log = log.replace('@' + jidDecode(user)!.user, chalk.blueBright('@' + await this.conn.getName(user)))
                 )))
 
             console.log(m.error! instanceof Error ? chalk.red(log) : m.isCommand ? chalk.yellow(log) : log)

@@ -35,12 +35,14 @@ export default class DBKeyedMutex {
         // like existing type is read and current type is read
         // only process existing one
         if (existing?.type == type) {
-            if (type == ActionType.WRITE) {
+            const previous = JSON.stringify(existing.data)
+            const current = JSON.stringify(data)
+            if (type == ActionType.WRITE && previous != current) {
                 this.logger.warn({
                     stack: new Error().stack,
                     p: existing.data,
                     c: data
-                }, `Got race condition in '${id}' with type ${ActionType[type]}!`)
+                }, `Got race condition in '${id}' -- type ${ActionType[type]} with different data!`)
             }
             return await existing.job
             // if job already exist but different type

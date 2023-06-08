@@ -1,0 +1,1 @@
+Saya ingin membuat stiker yang dapat digunakan dalam percakapan chat dengan teman-teman saya di berbagai platform chat. Bisakah layanan pembuatan stiker di bot ini membuat stiker yang bisa digunakan di platform chat yang berbeda-beda?

@@ -17,7 +17,9 @@ export class UserData extends data implements IData, z.infer<typeof UserData._sc
         banned: z.boolean().default(false),
 
         afk: z.number().default(-1),
-        afkReason: z.string().default('')
+        afkReason: z.string().default(''),
+
+        autoLevelup: z.boolean().default(false)
     })
 
     level = 0
@@ -29,6 +31,8 @@ export class UserData extends data implements IData, z.infer<typeof UserData._sc
 
     afk = -1
     afkReason = ''
+
+    autoLevelup = false
 
     constructor(file: string, db: UsersDatabase, obj?: Object | null) {
         super(file, db)

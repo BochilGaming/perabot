@@ -1,14 +1,13 @@
-import got from 'got'
 import { HelperMsg } from '../lib/helper.mjs'
 import { CommandablePlugin, MessageablePlugin, PluginCmdParam, PluginMsgParam } from '../lib/plugins.mjs'
-import { instagramdl } from '@bochilteam/scraper'
+import { snapsave } from '@bochilteam/scraper'
 
 export default class igdl implements MessageablePlugin, CommandablePlugin {
     readonly SID = Buffer.from('igdl').toString('base64url')
-    readonly URL_REGEX = /^(https?:\/\/)?(www\.)?instagram.com\/p\/[a-zA-Z0-9]{4,20}\/?/gm
+    readonly URL_REGEX = /(?:https?:\/\/)?(?:www.)?instagram.com\/?([a-zA-Z0-9\.\_\-]+)?\/([p]+)?([reel]+)?([tv]+)?([stories]+)?\/([a-zA-Z0-9\-\_\.]+)\/?([0-9]+)?/gm
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
     readonly MSG = {
-        URL: `Invalid URL, reply to this message and send tiktok video URL to download video!\n\n_sid: ${this.SID}_`
+        URL: `Invalid URL, reply to this message and send instagram video URL to download video!\n\n_sid: ${this.SID}_`
     } as const
 
     command = /^i(g|nstagram)(d(l|ownload(er)?))?$/
@@ -34,7 +33,21 @@ export default class igdl implements MessageablePlugin, CommandablePlugin {
             await m.reply(this.MSG.URL)
             return
         }
-        const result = await instagramdl(url)
-        console.log(result)
+        const result = await snapsave(url)
+        for (const media of result) {
+            try {
+                await m.reply({
+                    caption: `
+*🔗URL:* ${url}
+*🖻Thumbnail:* ${media.thumbnail}
+*📹Video:* ${media.url}
+`.trim(),
+                    video: { url: media.url }
+                })
+                break
+            } catch (e) {
+                console.error(media, e)
+            }
+        }
     }
 }
