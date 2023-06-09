@@ -1,6 +1,7 @@
 
 // WARNING: Change this can make permissions feature not working!
 // first 10 bit can be for making separate permission like kick, add, etc.
+// the further to the left the higher
 export enum PermissionsFlags {
     Banned = 0,
     Member = 1 << 10,
@@ -42,13 +43,13 @@ export default class PermissionManager {
     check (expectedPermissions: PermissionsFlags[] | PermissionsFlags) {
         if (!Array.isArray(expectedPermissions)) expectedPermissions = [expectedPermissions]
         const invalidPermissions = expectedPermissions.map((permission) => {
-            // if user permission is 0001 and expected permission is 0001 it will be given 0001
-            // but if user permission is 0001 and expected permission is 0010 it will be given 0000
-            // that means if zero it doesn't have that permission
-            if ((permission & this.permission) !== 0) return
+            // if user permission is 0011 and expected permission is 0001 it will be given 0001
+            // but if user permission is 0011 and expected permission is 0111 it will be given 0011
+            // that means if after the AND operation, the result is equal to the expected permissions -- pass
+            if ((this.permission & permission) === permission) return
             return permission
         }).filter(Boolean) as PermissionsFlags[]
-        // if don't have invalid permissions, it means they have all permissions and return true
+        // if they don't have invalid permissions
         if (!invalidPermissions.length) return true
         // otherwise return array of invalid permission
         return invalidPermissions

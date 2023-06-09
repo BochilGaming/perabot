@@ -1,6 +1,6 @@
 # **PeraBot** [WIP]
 
-PeraBot[^perabot] use Baileys[^baileys] to communicate with WhatsApp. PeraBot[^perabot] is written in TypeScript[^typescript], while its predecessor games-wabot[^gameswabot] is written in JavaScript[^javascript]. Also, Perabot[^perabot] use ECMAScript[^esm] module instead CommonJS[^cjs].
+PeraBot[^perabot] use Baileys[^baileys] to communicate with WhatsApp[^whatsapp]. PeraBot[^perabot] is written in TypeScript[^typescript], while its predecessor games-wabot[^gameswabot] is written in JavaScript[^javascript]. Also, Perabot[^perabot] use ECMAScript[^esm] module instead CommonJS[^cjs].
 
 ### Installation
 First, you need to install NodeJs[^nodejs]. After installing NodeJs[^nodejs] you can run bellow following commands
@@ -25,8 +25,9 @@ npm run start
 - All contributors
 
 ### Footnotes
-[^baileys]: https://github.com/WhiskeySockets/Baileys
 [^perabot]: https://github.com/BochilGaming/perabot
+[^baileys]: https://github.com/WhiskeySockets/Baileys
+[^whatsapp]: https://en.wikipedia.org/wiki/WhatsApp
 [^typescript]: https://www.typescriptlang.org/
 [^gameswabot]: https://github.com/BochilGaming/games-wabot
 [^javascript]: https://developer.mozilla.org/en-US/docs/Web/JavaScript

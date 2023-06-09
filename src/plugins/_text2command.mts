@@ -3,7 +3,7 @@ import { BeforeableCommand, PluginBeforeCmdParam } from '../lib/plugins.mjs'
 import model, { tokenizer, classes } from '../lib/classification.mjs'
 import { MessageUpsertType, WAProto, areJidsSameUser, generateWAMessage } from '@whiskeysockets/baileys'
 
-const MIN_OWNER_PREDICTION = .7
+const MIN_OWNER_PREDICTION = .75
 const MIN_USER_PREDICTION = .8
 
 let prefix: string = '/'
@@ -39,12 +39,12 @@ export default class NLPClassification implements BeforeableCommand {
         if ((isOwner && higest < MIN_OWNER_PREDICTION)
             || higest < MIN_USER_PREDICTION) return
 
-        let _text = classes[higestIndex]
+        let text = classes[higestIndex]
         // if it's classified as youtube, decide it's youtube downloader or youtube search
-        if (_text === 'youtube')
-            _text = this._handleYoutube(m.text) + ' ' + m.text
+        if (text === 'youtube')
+            text = this._handleYoutube(m.text) + ' ' + m.text
         // concat with prefix
-        const command = prefix + _text
+        const command = prefix + text
 
         let messages = await generateWAMessage(m.chat, { text: command, mentions: m.mentionedJid }, {
             userJid: conn.user!.id,

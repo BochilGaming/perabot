@@ -2,7 +2,6 @@ import { youtubedlv2 } from '@bochilteam/scraper'
 import got from 'got'
 import { CommandablePlugin, MessageablePlugin, PluginCmdParam, PluginMsgParam } from '../lib/plugins.mjs'
 import { HelperMsg } from '../lib/helper.mjs'
-import { PermissionsFlags } from '../lib/permissions.mjs'
 
 enum WaitingState {
     URL,
@@ -22,7 +21,6 @@ export default class ytdl implements CommandablePlugin, MessageablePlugin {
     command = /^y(t(mp[34])?|outube)(d(l|ownload(er)?))?$/i
     tags = ['youtube']
     help = ['', 'dl', 'mp3', 'mp4'].map((q) => `yt${q} <url>`)
-    permissions = PermissionsFlags.Owner
 
     async onMessage ({ m }: PluginMsgParam) {
         if (!m.quoted || !m.quoted.fromMe) return

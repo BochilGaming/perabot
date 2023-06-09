@@ -1,26 +1,38 @@
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
 import { data, Database, IData, IDatabase } from './database.mjs'
 import sanitize from 'sanitize-filename'
-import { z } from 'zod'
+import { boolean, z } from 'zod'
 import DBKeyedMutex, { ActionType } from './mutex.mjs'
 import { LOGGER } from '../lib/logger.mjs'
 
 const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'databases-users' }))
 
-export class UserData extends data implements IData, z.infer<typeof UserData._schema> {
-    static readonly _schema = z.object({
-        level: z.number().min(0).default(0),
+type UserSchema = Omit<z.infer<typeof UserData._schemaRegistered>, 'registered'> & { registered: boolean }
+
+export class UserData extends data implements IData, UserSchema {
+    static readonly _schemaBase = z.object({
         xp: z.number().min(0).default(0),
-        limit: z.number().min(0).default(10),
 
         permission: z.number().min(0).default(0),
         banned: z.boolean().default(false),
+        registered: z.literal(false),
 
         afk: z.number().default(-1),
         afkReason: z.string().default(''),
-
-        autoLevelup: z.boolean().default(false)
     })
+
+    static readonly _schemaRegistered = z.object({
+        level: z.number().min(0).default(0),
+        limit: z.number().min(0).default(10),
+
+        autoLevelup: z.boolean().default(true),
+        registered: z.literal(true),
+    }).merge(UserData._schemaBase.omit({ registered: true }))
+
+    static readonly _schema = z.discriminatedUnion("registered", [
+        UserData._schemaBase.partial().required({ registered: true }),
+        UserData._schemaRegistered.partial().required({ registered: true })
+    ])
 
     level = 0
     xp = 0
@@ -28,6 +40,7 @@ export class UserData extends data implements IData, z.infer<typeof UserData._sc
 
     permission = 0
     banned = false
+    registered = false
 
     afk = -1
     afkReason = ''
@@ -39,7 +52,7 @@ export class UserData extends data implements IData, z.infer<typeof UserData._sc
         this.create(obj)
     }
     create (obj?: Object | null | undefined, skipChecking = false) {
-        const data = UserData._schema.partial().nullish().parse(obj) || {}
+        const data = UserData._schema.nullish().parse(obj) || {}
         for (const key in data) {
             if (data == undefined) continue
             if (!(key in this))

@@ -149,10 +149,10 @@ export interface CommandablePlugin extends PluginBase {
     help: string[] | string
     tags?: string[]
     permissions?: PermissionsFlags[] | PermissionsFlags
-    onCommand (param: PluginCmdParam): Promise<void> | void
+    onCommand (param: PluginCmdParam): Promise<any> | any
 }
 export interface MessageablePlugin extends PluginBase {
-    onMessage (param: PluginMsgParam): Promise<void> | void
+    onMessage (param: PluginMsgParam): Promise<any> | any
 }
 export interface BeforeableCommand extends PluginBase {
     beforeCommand (param: PluginBeforeCmdParam): void

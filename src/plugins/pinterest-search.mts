@@ -9,6 +9,7 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
         QUERY: `Please provide query for search image, reply to this message and type a query to search on Pinterest\n\n_sid: ${this.SID}_`
     } as const
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
+
     command = /^pin(s|terest(search)?)$/
     help = 'pinterest'
     tags = ['tools', 'downloader']
@@ -24,10 +25,9 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
     }
 
     async search ({ m, query }: { m: HelperMsg, query: string }) {
-        if (!query) {
-            await m.reply(this.MSG.QUERY)
-            return
-        }
+        if (!query)
+            return await m.reply(this.MSG.QUERY)
+
         let i = 0
         const results = await scraper.pinterest(query)
         for (const url of results.reverse()) {

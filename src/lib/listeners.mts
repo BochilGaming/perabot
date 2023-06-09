@@ -108,7 +108,7 @@ export default class Listeners {
                 // Check permissions
                 if (pluginModule.permissions) {
                     const isAccessGranted = permissionManager.check(pluginModule.permissions)
-                    if (typeof isAccessGranted !== 'boolean') {
+                    if (isAccessGranted !== true) {
                         await m.reply(`Access not granted because invalid permissions *${isAccessGranted.map((permission) => PermissionsFlags[permission]).join(', ')}*`)
                         continue
                     }
