@@ -7,7 +7,7 @@ export default class play implements CommandablePlugin {
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
 
     command = 'play'
-    help = 'play'
+    help = 'play <query>'
     tags = ['youtube']
 
     async onCommand ({
@@ -18,9 +18,10 @@ export default class play implements CommandablePlugin {
     }: PluginCmdParam) {
         if (!text)
             return await m.reply(`
-Use example ${usedPrefix}${command} Minecraft
+Use format ${usedPrefix}${command} <query>
+Example ${usedPrefix}${command} Minecraft
 Or reply to this message and type a query to search on Youtube
-\n
+${readMore}
 _sid: ${this.SID}_
 `.trim())
 
@@ -52,3 +53,6 @@ Or you can manually search on youtube and copy video URL then type ${usedPrefix}
         })
     }
 }
+
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)

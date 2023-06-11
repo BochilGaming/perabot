@@ -75,14 +75,14 @@ ${chalk.green('%s')} ${chalk.blueBright('to')} ${chalk.green('%s')} ${chalk.blac
 
             console.log(m.error! instanceof Error ? chalk.red(log) : m.isCommand ? chalk.yellow(log) : log)
         }
-        if (m.messageStubParameters.length 
-            && m.messageStubType != WAProto.WebMessageInfo.StubType.REVOKE 
+        if (m.messageStubParameters.length
+            && m.messageStubType != WAProto.WebMessageInfo.StubType.REVOKE
             && m.messageStubType != WAProto.WebMessageInfo.StubType.CIPHERTEXT) console.log(
-            (await Promise.all(m.messageStubParameters.map(async (jid) => {
-                let name = await this.conn.getName(jid)
-                return chalk.gray(formatJidNumber(jid) + (name ? ' ~' + name : ''))
-            })))
-                .join(', '))
+                (await Promise.all(m.messageStubParameters.map(async (jid) => {
+                    let name = await this.conn.getName(jid)
+                    return chalk.gray(formatJidNumber(jid) + (name ? ' ~' + name : ''))
+                })))
+                    .join(', '))
         if (typeof m.msg === 'object' && m.msg) {
             if ('displayName' in m.msg) {
                 if (m.mtype == 'documentMessage')

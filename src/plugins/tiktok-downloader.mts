@@ -8,11 +8,11 @@ export default class ttdl implements MessageablePlugin, CommandablePlugin {
     readonly URL_REGEX = /\bhttps?:\/\/(?:m|www|vm)\.tiktok\.com\/\S*?\b(?:(?:(?:usr|v|embed|user|video)\/|\?shareId=|\&item_id=)(\d+)|(?=\w{7})(\w*?[A-Z\d]\w*)(?=\s|\/$))\b/gm
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
     readonly MSG = {
-        URL: `Invalid URL, reply to this message and send tiktok video URL to download video!\n\n_sid: ${this.SID}_`
+        URL: `Invalid URL, reply to this message and send tiktok video URL to download video!${readMore}\n_sid: ${this.SID}_`
     } as const
 
     command = /^tiktok(d(l|ownload(er)?))?$/
-    help = ['tiktok']
+    help = ['tiktok <URL>']
     tags = ['downloader']
 
     async onMessage ({ m }: PluginMsgParam) {
@@ -23,9 +23,18 @@ export default class ttdl implements MessageablePlugin, CommandablePlugin {
 
     async onCommand ({
         m,
-        text
+        text,
+        usedPrefix,
+        command,
     }: PluginCmdParam) {
         const url = text.match(this.URL_REGEX)?.[0]
+        if (!url) return m.reply(`
+Use format ${usedPrefix}${command} <URL>
+Example ${usedPrefix}${command} https://www.tiktok.com/@omagadsus/video/7025456384175017243
+Or reply to this message and type/send a URL to download Tiktok video
+${readMore}
+_sid: ${this.SID}_
+`.trim())
         await this.download({ m, url })
     }
 
@@ -57,3 +66,6 @@ export default class ttdl implements MessageablePlugin, CommandablePlugin {
         }
     }
 }
+
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)

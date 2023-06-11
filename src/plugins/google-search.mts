@@ -2,15 +2,15 @@ import * as scraper from '@bochilteam/scraper'
 import { HelperMsg } from '../lib/helper.mjs'
 import { CommandablePlugin, MessageablePlugin, PluginCmdParam, PluginMsgParam } from '../lib/plugins.mjs'
 
-export default class googleit implements CommandablePlugin, MessageablePlugin{
+export default class googleit implements CommandablePlugin, MessageablePlugin {
     readonly ITERATION = 5
     readonly SID = Buffer.from('googleit').toString('base64url')
     readonly MSG = {
-        QUERY: `Please provide query for search in Google, reply to this message and type a query to search on Google\n\n_sid: ${this.SID}_`
+        QUERY: `Please provide query for search in Google, reply to this message and type a query to search on Google${readMore}\n_sid: ${this.SID}_`
     } as const
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
-    command = /^google(it|search)$/
-    help = 'googleit'
+    command = /^google(it|search)?$/
+    help = ['googleit', 'google'].map(v => v = ' <query>')
     tags = ['tools']
 
     async onMessage ({ m }: PluginMsgParam) {
@@ -19,7 +19,15 @@ export default class googleit implements CommandablePlugin, MessageablePlugin{
 
     }
 
-    async onCommand ({ m, text }: PluginCmdParam) {
+    async onCommand ({ m, text, usedPrefix, command }: PluginCmdParam) {
+        if (!text)
+            return await m.reply(`
+Use format ${usedPrefix}${command} <query>
+Example ${usedPrefix}${command} Minecraft
+Or reply to this message and type a query to search on Google
+${readMore}
+_sid: ${this.SID}_
+`.trim())
         await this.search({ m, query: text })
     }
 
@@ -35,3 +43,6 @@ export default class googleit implements CommandablePlugin, MessageablePlugin{
         await m.reply(msg)
     }
 }
+
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)

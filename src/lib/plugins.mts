@@ -128,16 +128,10 @@ export default class Plugins {
         this.plugins.set(filename, plugin)
     }
 
-    filter (filename: string) {
+    filter (filename: string | null): filename is string {
         // only allow file with '.mts' extension
-        return /(\.mts)$/.test(filename)
+        return /(\.mts)$/.test(filename ?? '')
     }
-
-    typescriptFilter (filename: string) {
-        // allow '.mts' or '.d.ts' extension
-        return /(\.(m|d\.)ts)$/.test(filename)
-    }
-
 }
 
 export interface PluginBase {

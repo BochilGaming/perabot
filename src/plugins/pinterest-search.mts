@@ -6,12 +6,12 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
     readonly ITERATION = 5
     readonly SID = Buffer.from('pins').toString('base64url')
     readonly MSG = {
-        QUERY: `Please provide query for search image, reply to this message and type a query to search on Pinterest\n\n_sid: ${this.SID}_`
+        QUERY: `Please provide query for search image, reply to this message and type a query to search on Pinterest${readMore}\n_sid: ${this.SID}_`
     } as const
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
 
     command = /^pin(s|terest(search)?)$/
-    help = 'pinterest'
+    help = 'pinterest <query>'
     tags = ['tools', 'downloader']
 
     async onMessage ({ m }: PluginMsgParam) {
@@ -20,7 +20,15 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
 
     }
 
-    async onCommand ({ m, text }: PluginCmdParam) {
+    async onCommand ({ m, text, usedPrefix, command }: PluginCmdParam) {
+        if (!text)
+            return await m.reply(`
+Use format ${usedPrefix}${command} <query>
+Example ${usedPrefix}${command} Minecraft
+Or reply to this message and type a query to search on Pinterest
+${readMore}
+_sid: ${this.SID}_
+`.trim())
         await this.search({ m, query: text })
     }
 
@@ -37,3 +45,6 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
         }
     }
 }
+
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)

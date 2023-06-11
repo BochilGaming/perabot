@@ -209,13 +209,13 @@ export default class Store {
 
             if (events['message-receipt.update']) {
                 const updates = events['message-receipt.update']
-                await Promise.all(updates.map(async ({ key, receipt }) => {
+                for (const { key, receipt } of updates) {
                     const id = key.id!
                     if (!this.messages.has(id)) return
                     const msg = await this.messages.get(id)
                     updateMessageWithReceipt(msg, receipt)
                     await msg.save()
-                }))
+                }
             }
 
             if (events['messages.reaction']) {

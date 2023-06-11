@@ -7,7 +7,7 @@ export default class sticker implements CommandablePlugin, MessageablePlugin {
     readonly SID = Buffer.from('sticker').toString('base64url')
 
     readonly MSG = {
-        REPLY: `Reply to this message and send the video🎞️/image📷 or send the url🔗 of the image!\n\n_sid: ${this.SID}_`
+        REPLY: `Reply to this message and send the video🎞️/image📷 or send the url🔗 of the image!${readMore}\n_sid: ${this.SID}_`
     } as const
 
     command = /^(gif)?(s(tic?ker)?)(gif)?$/i
@@ -52,3 +52,6 @@ export default class sticker implements CommandablePlugin, MessageablePlugin {
         return text.match(new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)(jpe?g|gif|png)/, 'gi'))
     }
 }
+
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)
