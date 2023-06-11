@@ -177,7 +177,13 @@ export default class Store {
                 const updates = events['groups.update']
                 await Promise.all(updates.map(async (update) => {
                     const id = update.id!
-                    await this.chats.update(id, { metadata: update })
+                    const chat = await this.chats.get(id)
+                    if (chat && 'metadata' in chat) {
+                        chat.create({ metadata: { ...chat.metadata, ...update } })
+                        await chat.save()
+                    } else {
+                        this.#logger?.debug({ update }, `got update for non-existant group ${id} metadata`)
+                    }
                 }))
             }
 

@@ -92,8 +92,10 @@ export default class Helper {
                     }
                 }
                 const user = jidDecode(jid)
-                if (!user)
-                    throw new Error(`'user' of ${jid} is undefined`)
+                if (!user) {
+                    // console.error(new Error(`'user' of ${jid} is undefined`))
+                    return jid
+                }
                 return 'verifiedName' in chat && typeof chat.verifiedName === 'string' ? chat.verifiedName
                     : 'notify' in chat && typeof chat.notify === 'string' ? chat.notify
                         : 'name' in chat && typeof chat.name === 'string' ? chat.name
