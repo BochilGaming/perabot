@@ -14,8 +14,8 @@ export default class ytdl implements CommandablePlugin, MessageablePlugin {
     readonly SID = Buffer.from('ytdl').toString('base64url')
     readonly REPLY_REGEX = new RegExp(`_sid: (${this.SID})-(.*?)(-(.*?))?_`)
     readonly MSG = {
-        URL: `Reply to this message and send youtube video URL to download video${readMore}\n_sid: ${this.SID}-${WaitingState.URL}_`,
-        RESOLUTION: `Please choose which number by replying to this message${readMore}\n_sid: ${this.SID}-${WaitingState.RESOLUTION}-`
+        URL: `Reply to this message and send youtube video URL to download video${readMore}\n\n_sid: ${this.SID}-${WaitingState.URL}_`,
+        RESOLUTION: `Please choose which number by replying to this message${readMore}\n\n_sid: ${this.SID}-${WaitingState.RESOLUTION}-`
     } as const
 
     command = /^y(t(mp[34])?|outube)(d(l|ownload(er)?))?$/i

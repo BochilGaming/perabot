@@ -52,9 +52,9 @@ export class UserData extends data implements IData, UserSchema {
         this.create(obj)
     }
     create (obj?: Object | null | undefined, skipChecking = false) {
-        const data = UserData._schema.nullish().parse(obj) || {}
+        const data: Partial<z.infer<typeof UserData._schema>> = UserData._schema.nullish().parse(obj) || {}
         for (const key in data) {
-            if (data == undefined) continue
+            if (data[key as keyof z.infer<typeof UserData._schema>] == undefined) continue
             if (!(key in this))
                 console.warn(`Property ${key} doesn't exist in '${UserData.name}', but trying to insert with ${data}`)
             // @ts-ignore

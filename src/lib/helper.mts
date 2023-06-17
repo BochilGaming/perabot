@@ -16,15 +16,27 @@ import baileys, {
 } from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import pino from 'pino'
+import { z } from 'zod'
 import Store from '../store/store.mjs'
+import Config from './config.mjs'
 
 // @ts-ignore 
 const proto: typeof _proto = baileys.proto
 
 export interface HelperConn extends WASocket {
-    reply (jid: string, msg: AnyMessageContent, quoted?: WAProto.WebMessageInfo, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']>
+    reply (
+        jid: string,
+        msg: AnyMessageContent,
+        quoted?: WAProto.WebMessageInfo,
+        options?: MiscMessageGenerationOptions
+    ): ReturnType<WASocket['sendMessage']>
     getName (jid: string): Promise<string>
-    sendContacts (jid: string, contacts: { id: string, name?: string }[], quoted?: WAProto.WebMessageInfo, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']>
+    sendContacts (
+        jid: string,
+        contacts: (Omit<z.infer<typeof Config._schemaOwner>, 'isCreator' | 'number'> & { id: string })[],
+        quoted?: WAProto.WebMessageInfo,
+        options?: MiscMessageGenerationOptions
+    ): ReturnType<WASocket['sendMessage']>
 }
 export interface HelperMsg extends SerializedMsg {
     conn: HelperConn
@@ -102,15 +114,52 @@ export default class Helper {
                             : parsePhoneNumber('+' + jidDecode(jid)!.user).number!.international
             },
             async sendContacts (jid, data, quoted, opts) {
-                const contacts = await Promise.all(data.map(async ({ id: _id, name }) => {
+                const contacts = await Promise.all(data.map(async ({
+                    id: _id,
+                    name,
+                    messages,
+                    org,
+                    title,
+                    emails,
+                    urls
+                }) => {
                     const id = !_id.includes('@s.whatsapp.net') ? _id.concat('@s.whatsapp.net') : _id
                     const number = id.replace('@s.whatsapp.net', '')
                     name ??= await this.getName(number)
-                    const vcard = 'BEGIN:VCARD\n' // metadata of the contact card
-                        + 'VERSION:3.0\n'
-                        + `FN:${name}\n` // full name
-                        + `TEL;type=CELL;type=VOICE;waid=${number}:${parsePhoneNumber('+' + number).number!.international}\n` // WhatsApp ID + phone number
-                        + 'END:VCARD'
+
+                    let index = 1
+                    const items = [
+                        `item1.TEL;waid=${number}:${parsePhoneNumber('+' + number).number!.international}`,
+                        'item1.X-ABLabel:Ponsel'
+                    ]
+                    if (messages)
+                        for (const { content, label } of messages) {
+                            index++
+                            items.push(`item${index}.ADR:;;;;;;${content}`)
+                            if (label)
+                                items.push(`item${index}.X-ABLabel:${label}`)
+                        }
+                    if (emails)
+                        for (const email of emails) {
+                            index++
+                            items.push(`item${index}.EMAIL:${email}`)
+                        }
+                    if (urls)
+                        for (const url of urls) {
+                            index++
+                            items.push(`item${index++}.URL:${url}`)
+                        }
+
+                    const contents = [
+                        'BEGIN:VCARD',
+                        'VERSION:3.0',
+                        `FN:${name}`,
+                        title && `TITLE:${title}`,
+                        org && `ORG:${org}`,
+                        ...items,
+                        'END:VCARD'
+                    ].filter(Boolean) as string[]
+                    const vcard = contents.join('\n')
                     return { vcard, displayName: name } satisfies WAProto.Message.IContactMessage
                 }))
                 return this.sendMessage(jid, {

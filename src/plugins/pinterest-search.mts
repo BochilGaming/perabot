@@ -6,7 +6,7 @@ export default class pinterest implements CommandablePlugin, MessageablePlugin {
     readonly ITERATION = 5
     readonly SID = Buffer.from('pins').toString('base64url')
     readonly MSG = {
-        QUERY: `Please provide query for search image, reply to this message and type a query to search on Pinterest${readMore}\n_sid: ${this.SID}_`
+        QUERY: `Please provide query for search image, reply to this message and type a query to search on Pinterest${readMore}\n\n_sid: ${this.SID}_`
     } as const
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
 

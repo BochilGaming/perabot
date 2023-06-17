@@ -1,3 +1,7 @@
+from tensorflow.keras import layers
+from utils.text_processor import OutputTextProcessor
+import tensorflow as tf
+import io
 import os
 import sys
 
@@ -5,11 +9,6 @@ script_dir = os.path.dirname(__file__)
 module_dir = os.path.join(script_dir, '..')
 sys.path.append(module_dir)
 
-import io
-import tensorflow as tf
-
-from utils.text_processor import OutputTextProcessor
-from tensorflow.keras import layers
 
 SEED = 42
 AUTOTUNE = tf.data.AUTOTUNE
@@ -20,6 +19,8 @@ SAVE_PATH = 'model-64-32k-100k'
 # Generates skip-gram pairs with negative sampling for a list of sequences
 # (int-encoded sentences) based on window size, number of negative samples
 # and vocabulary size.
+
+
 def generate_training_data(sequences, window_size, num_ns, vocab_size, seed):
     def _generate_training_data():
         # Build the sampling table for `vocab_size` tokens.
@@ -63,8 +64,6 @@ def generate_training_data(sequences, window_size, num_ns, vocab_size, seed):
 # https://github.com/tensorflow/tensorflow/issues/43559#issuecomment-1549988416
 
 
-
-
 class Word2Vec(tf.keras.Model):
     def __init__(self, vocab_size: int, embedding_dim: int, num_ns: int):
         super(Word2Vec, self).__init__()
@@ -92,6 +91,13 @@ class Word2Vec(tf.keras.Model):
         return dots
 
 
+def subsampling_frequent_words(text):
+    # TODO: Fix replace
+    # example sentences: "terjadi sampai" will be replaced to "terjasampai"
+    # expected -- just ignore, don't replace it
+    return tf.strings.regex_replace(text, r"(dan|yang|di|pada|dari|dengan|dalam|ini|untuk|adalah|sebagai|oleh|ke|the)\s", '')
+
+
 if __name__ == '__main__':
     text_ds = tf.data.TextLineDataset(
         DATASET_PATH).filter(lambda x: tf.cast(tf.strings.length(x), bool))
@@ -105,7 +111,7 @@ if __name__ == '__main__':
     # same length.
     vectorize_layer = OutputTextProcessor(
         max_tokens=vocab_size, output_sequence_length=sequence_length)
-    vectorize_layer.adapt(text_ds.batch(1024))
+    vectorize_layer.adapt(text_ds.map(subsampling_frequent_words).batch(1024))
     # Save the created vocabulary for reference.
     inverse_vocab = vectorize_layer.get_vocabulary()
     print(inverse_vocab[:10], inverse_vocab[-10:])
@@ -153,11 +159,18 @@ if __name__ == '__main__':
                      metrics=['accuracy'])
 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs")
-    history = word2vec.fit(dataset, epochs=30, callbacks=[
-                           tensorboard_callback])
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=os.path.join(SAVE_PATH, 'ckpt-model/word2vec-{epoch:02d}'),
+        save_weights_only=True,
+        save_freq='epoch')
 
-    out_v = io.open(os.path.join(SAVE_PATH, 'vectors.tsv'), 'w', encoding='utf-8')
-    out_m = io.open(os.path.join(SAVE_PATH, 'metadata.tsv'), 'w', encoding='utf-8')
+    history = word2vec.fit(dataset, epochs=30, callbacks=[
+                           tensorboard_callback, model_checkpoint_callback])
+
+    out_v = io.open(os.path.join(SAVE_PATH, 'vectors.tsv'),
+                    'w', encoding='utf-8')
+    out_m = io.open(os.path.join(SAVE_PATH, 'metadata.tsv'),
+                    'w', encoding='utf-8')
 
     w2v_embedding_layer = word2vec.get_layer('w2v_embedding')
     weights = w2v_embedding_layer.get_weights()[0]
@@ -173,4 +186,5 @@ if __name__ == '__main__':
     out_m.close()
 
     w2v_embedding_ckpt = tf.train.Checkpoint(layer=w2v_embedding_layer)
-    w2v_embedding_ckpt.save(os.path.join(SAVE_PATH, 'ckpt', 'w2v_embedding_64'))
+    w2v_embedding_ckpt.save(os.path.join(
+        SAVE_PATH, 'ckpt', 'w2v_embedding'))

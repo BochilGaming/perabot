@@ -10,7 +10,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from utils.text_processor import OutputTextProcessor
 
-MODEL_PATH = os.path.join('..', 'word2vec', 'model-64-32k-100k')
+MODEL_PATH = os.path.join('..', 'word2vec', 'model-128-64k-100k')
 DATASET_PATH = os.path.join('.', 'dataset')
 
 
@@ -25,8 +25,8 @@ if __name__ == '__main__':
         lambda text: tf.cast(not tf.strings.regex_full_match(text, '\[UNK\]'), bool))
 
     # Define the vocabulary size and the number of words in a sequence.
-    vocab_size = 32000
-    sequence_length = 64
+    vocab_size = 64000
+    sequence_length = 128
 
     vectorize_layer = OutputTextProcessor(
         max_tokens=vocab_size,
@@ -54,8 +54,9 @@ if __name__ == '__main__':
     train_dataset = raw_train_dataset.map(vectorize_text)
     train_dataset = train_dataset.cache().prefetch(buffer_size=tf.data.AUTOTUNE)
 
+    embedding_dim = 64
     w2v_layer = layers.Embedding(vocab_size,
-                                          sequence_length,
+                                          embedding_dim,
                                           mask_zero=True,
                                           name="w2v_embedding")
     w2v_layer.trainable = False

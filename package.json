@@ -1,6 +1,6 @@
 {
   "name": "perabot",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "type": "module",
   "main": "lib/index.mjs",
@@ -20,6 +20,7 @@
     "@whiskeysockets/baileys": "^6.2.1",
     "awesome-phonenumber": "^4.4.1",
     "chalk": "^5.2.0",
+    "google-translate-api": "^2.3.0",
     "got": "^12.6.1",
     "human-readable": "^0.2.1",
     "js-yaml": "^4.1.0",
@@ -35,6 +36,8 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
+    "@adiwajshing/keyed-db": "^0.2.4",
+    "@types/google-translate-api": "^2.3.2",
     "@types/js-yaml": "^4.0.5",
     "@types/node": "^18.16.17",
     "nodemon": "^2.0.22",
@@ -42,5 +45,8 @@
   },
   "optionalDependencies": {
     "wa-sticker-formatter": "^4.4.4"
+  },
+  "peerDependencies": {
+    "@adiwajshing/keyed-db": "^0.2.4"
   }
 }

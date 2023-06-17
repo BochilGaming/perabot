@@ -10,7 +10,7 @@ class Tokenizer {
     #token: { [key: string]: number } | undefined
     constructor(
         tokenPath: string,
-        public sequenceLength = 64) {
+        public sequenceLength = 128) {
         this.#tokenPath = tokenPath
     }
 
@@ -35,7 +35,8 @@ class Tokenizer {
         const tokenized = texts.map((text) => {
             text = text.toLowerCase()
             text = text.replace(/[!"#$%&()\*\+,-\./:;<=>?@\[\\\]^_`{|}~\']/g, '')
-            const chars = text.split(' ')
+            // slice only first 128 characters
+            const chars = text.split(' ').slice(-128)
             const tokens = chars.map((char) => {
                 return this.#token![this._preprocessWord(char)] || 1
             })
@@ -58,7 +59,7 @@ class Tokenizer {
 
 const ML_PATH = path.join(__dirname, '../../machine_learning')
 const MODEL_PATH = path.join(ML_PATH, './classification/pretrained-tfjs/model.json')
-const TOKEN_PATH = path.join(ML_PATH, './word2vec/model-64-32k-100k/metadata.tsv')
+const TOKEN_PATH = path.join(ML_PATH, './word2vec/model-128-64k-100k/metadata.tsv')
 const DATASET_PATH = path.join(ML_PATH, './classification/dataset')
 
 const tokenizer = new Tokenizer(TOKEN_PATH)

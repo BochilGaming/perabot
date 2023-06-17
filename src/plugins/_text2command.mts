@@ -3,7 +3,7 @@ import { BeforeableCommand, PluginBeforeCmdParam } from '../lib/plugins.mjs'
 import model, { tokenizer, classes } from '../lib/classification.mjs'
 import { MessageUpsertType, WAProto, areJidsSameUser, generateWAMessage } from '@whiskeysockets/baileys'
 
-const MIN_OWNER_PREDICTION = .75
+const MIN_OWNER_PREDICTION = .70
 const MIN_USER_PREDICTION = .8
 
 let prefix: string = '/'

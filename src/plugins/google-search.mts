@@ -10,7 +10,7 @@ export default class googleit implements CommandablePlugin, MessageablePlugin {
     } as const
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
     command = /^google(it|search)?$/
-    help = ['googleit', 'google'].map(v => v = ' <query>')
+    help = ['googleit', 'google'].map(v => v + ' <query>')
     tags = ['tools']
 
     async onMessage ({ m }: PluginMsgParam) {

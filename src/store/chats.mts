@@ -52,10 +52,10 @@ export class ChatPrivateStore extends data implements IData, z.infer<typeof Chat
     }
 
     create (obj?: Object | null | undefined) {
-        const data = ChatPrivateStore._schema.partial().nullish().parse(obj) || {}
+        const data: Partial<z.infer<typeof ChatPrivateStore._schema>> = ChatPrivateStore._schema.partial().nullish().parse(obj) || {}
         for (const key in data) {
             // ? maybe will cause an error
-            if (data == undefined) continue
+            if (data[key as keyof z.infer<typeof ChatPrivateStore._schema>] == undefined) continue
             // if (!(key in this))
             //     console.warn(`Property ${key} doesn't exist in '${ChatPrivateStore.name}', but trying to insert with ${data}`)
 
@@ -139,9 +139,9 @@ export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGr
     }
 
     create (obj?: Object | null | undefined) {
-        const data = ChatGroupStore._schema.partial().nullish().parse(obj) || {}
+        const data: Partial<z.infer<typeof ChatGroupStore._schema>> = ChatGroupStore._schema.partial().nullish().parse(obj) || {}
         for (const key in data) {
-            if (data == undefined) continue
+            if (data[key as keyof z.infer<typeof ChatGroupStore._schema>]) continue
             // if (!(key in this))
             //     console.warn(`Property ${key} doesn't exist in '${ChatGroupStore.name}', but trying to insert with ${data}`)
 

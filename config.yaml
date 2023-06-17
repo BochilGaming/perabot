@@ -1,11 +1,20 @@
 owners:
-  - 
-    number: '6281319944687'
+  - number: '6281319944687'
     name: 'BG'
     # If you type '/owner' and if isCreator is true, this number will be shown as the owner
     isCreator: true
-  - 
-    number: '62xxx'
+    # This field below will be displayed in vcard
+    messages:
+      - content: Hello 
+        label: Greetings
+    # if only one of the title or org is filled, it will not appear on the vcard
+    title: Main Creator 
+    org: BochilTeam
+    emails: 
+      - bussinesbochilgaming@gmail.com
+    urls:
+      - https://github.com/BochilGaming
+    
 sticker:
-  packname:
-  author:
+  packname: Create stickers at wa.me/6285713964963
+  author: ©2023 Metro Bot

@@ -1,5 +1,4 @@
 import { areJidsSameUser, BaileysEventMap, jidNormalizedUser } from '@whiskeysockets/baileys'
-import util from 'util'
 import { users } from '../database/index.mjs'
 import { conn as _connection, config, plugin, PREFIX } from '../index.mjs'
 import CommandManager from './command.mjs'
@@ -8,7 +7,6 @@ import Helper from './helper.mjs'
 import PermissionManager, { PermissionsFlags } from './permissions.mjs'
 import { PluginBeforeCmdParam, PluginCmdParam, PluginMsgParam } from './plugins.mjs'
 import Print from './print.mjs'
-import { norm } from '@tensorflow/tfjs-node'
 
 export default class Listeners {
     constructor(public connection: Required<Connection>) { }
@@ -143,7 +141,13 @@ export default class Listeners {
             }
 
         } catch (e) {
-            this.connection.logger.error({ stack: (e as Error).stack, m, quoted: m.quoted }, typeof e === 'string' ? e : (e as Error).message)
+            this.connection.logger.error({ 
+                stack: (e as Error).stack, 
+                // @ts-ignore
+                code: e.code, 
+                m, 
+                quoted: m.quoted 
+            }, typeof e === 'string' ? e : (e as Error).message)
             if ((e as Error).name) {
                 // await m.reply(util.format(e))
                 await m.reply(`Error occurred!`)
@@ -153,7 +157,14 @@ export default class Listeners {
             try {
                 await new Print(this.connection.sock, this.connection.store).print(m)
             } catch (e) {
-                this.connection.logger.error({ stack: (e as Error).stack, m, quoted: m.quoted }, (e as Error).message)
+                this.connection.logger.error({ 
+                    stack: (e as Error).stack, 
+                    // @ts-ignore
+                    code: e.code, 
+                    m, 
+                    quoted: 
+                    m.quoted 
+                }, (e as Error).message)
             }
         }
     }

@@ -7,7 +7,7 @@ export default class sticker implements CommandablePlugin, MessageablePlugin {
     readonly SID = Buffer.from('sticker').toString('base64url')
 
     readonly MSG = {
-        REPLY: `Reply to this message and send the video🎞️/image📷 or send the url🔗 of the image!${readMore}\n_sid: ${this.SID}_`
+        REPLY: `Reply to this message and send the video🎞️/image📷 or send the url🔗 of the image!${readMore}\n\n_sid: ${this.SID}_`
     } as const
 
     command = /^(gif)?(s(tic?ker)?)(gif)?$/i

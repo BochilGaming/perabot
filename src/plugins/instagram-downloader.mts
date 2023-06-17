@@ -7,7 +7,7 @@ export default class igdl implements MessageablePlugin, CommandablePlugin {
     readonly URL_REGEX = /(?:https?:\/\/)?(?:www.)?instagram.com\/?([a-zA-Z0-9\.\_\-]+)?\/([p]+)?([reel]+)?([tv]+)?([stories]+)?\/([a-zA-Z0-9\-\_\.]+)\/?([0-9]+)?/gm
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
     readonly MSG = {
-        URL: `Invalid URL, reply to this message and send instagram video URL to download video!${readMore}\n_sid: ${this.SID}_`
+        URL: `Invalid URL, reply to this message and send instagram video URL to download video!${readMore}\n\n_sid: ${this.SID}_`
     } as const
 
     command = /^i(g|nstagram)(d(l|ownload(er)?))?$/

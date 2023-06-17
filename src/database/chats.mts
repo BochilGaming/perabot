@@ -22,9 +22,9 @@ export class ChatData extends data implements IData, z.infer<typeof ChatData._sc
         this.create(obj)
     }
     create (obj?: object | null, skipChecking = false) {
-        const data = ChatData._schema.partial().nullish().parse(obj) || {}
+        const data: Partial<z.infer<typeof ChatData._schema>> = ChatData._schema.partial().nullish().parse(obj) || {}
         for (const key in data) {
-            if (data == undefined) continue
+            if (data[key as keyof z.infer<typeof ChatData._schema>] == undefined) continue
             if (!(key in this))
                 console.warn(`Property ${key} doesn't exist in '${ChatData.name}', but trying to insert with ${data}`)
             // ? Idk 
