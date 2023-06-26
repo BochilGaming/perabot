@@ -2,6 +2,7 @@ import { jidNormalizedUser } from '@whiskeysockets/baileys'
 import fs from 'fs'
 import path from 'path'
 import sanitizeFile from 'sanitize-filename'
+
 export interface IDatabase<T> {
     get (user: string): Promise<T | null>
     save (filename: string, obj: T): Promise<any>
@@ -9,7 +10,7 @@ export interface IDatabase<T> {
     update (key: string, data: Object | T, insertIfAbsent?: boolean): Promise<boolean>
 }
 
-export class Database {
+export abstract class Database {
     constructor(public folder: string) {
         this.initializeFolder()
     }
@@ -92,7 +93,7 @@ export interface IData {
     saveSync: () => void
 }
 
-export class data {
+export abstract class data {
     constructor(
         public readonly _filename: string,
         public readonly _db: Database,

@@ -200,8 +200,9 @@ export class ChatsStore extends Database implements IDatabase<ChatPrivateStore |
 
         const isGroup = (data && 'id' in data && typeof data.id === 'string' && data.id.endsWith('@g.us'))
             || user.endsWith('@g.us')
-        await new (isGroup ? ChatGroupStore : ChatPrivateStore)(filename, this, data)
-            .save()
+        const chat =  new (isGroup ? ChatGroupStore : ChatPrivateStore)(filename, this, data)
+        chat.setId(user)
+        await chat.save()
         return true
     }
 
