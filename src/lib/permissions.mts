@@ -24,7 +24,7 @@ export default class PermissionManager {
     private isBanned = false
     permissions = 0
     constructor(opts: PermissionManagerOptions) {
-
+        this.permissions = opts.permission
         this.isBanned = opts.banned
         this.isAdmin = opts.isAdmin
         this.isBotAdmin = opts.isBotAdmin
