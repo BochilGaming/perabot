@@ -10,7 +10,6 @@ export enum ActionType {
 interface JobData {
     type: ActionType
     job: Promise<any>
-    data: Object
 }
 
 /**
@@ -27,23 +26,13 @@ export default class DBKeyedMutex {
     async mutex<T extends Promise<any>> (
         id: string,
         type: ActionType,
-        data: Object,
         job: () => T
     ): Promise<Awaited<T>> {
         const existing = this.#jobs.get(id)
-        // if job already exist and type is same
-        // like existing type is read and current type is read
+        // if job already exist and type is same ('read')
+        // If existing type is read and current type is read
         // only process existing one
-        if (existing?.type == type) {
-            const previous = JSON.stringify(existing.data)
-            const current = JSON.stringify(data)
-            if (type == ActionType.WRITE && previous != current) {
-                this.logger.warn({
-                    stack: new Error().stack,
-                    p: existing.data,
-                    c: data
-                }, `Got race condition in '${id}' -- type ${ActionType[type]} with different data!`)
-            }
+        if (existing?.type == type && (existing.type & ActionType.WRITE) !== ActionType.WRITE) {
             return await existing.job
             // if job already exist but different type
         } else if (existing) {
@@ -53,7 +42,6 @@ export default class DBKeyedMutex {
 
         this.#jobs.set(id, {
             type,
-            data,
             job: job()
         })
         try {

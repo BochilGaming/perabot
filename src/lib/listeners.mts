@@ -12,7 +12,8 @@ export default class Listeners {
     constructor(public connection: Required<Connection>) { }
 
     async onMessage (chatUpdate: BaileysEventMap['messages.upsert']) {
-
+        if (chatUpdate.messages.length > 1)
+            console.log(chatUpdate)
         // last message
         const m = Helper.message(chatUpdate.messages[chatUpdate.messages.length - 1], {
             conn: this.connection.sock,
@@ -39,7 +40,8 @@ export default class Listeners {
 
             // not efficient because always read data from disk if get message
             const userData = await users.get(m.sender)
-            const permissionManager = new PermissionManager(userData.permission, {
+            const permissionManager = new PermissionManager({
+                permission: userData.permission,
                 isAdmin,
                 isBotAdmin,
                 isOwner,
@@ -141,12 +143,12 @@ export default class Listeners {
             }
 
         } catch (e) {
-            this.connection.logger.error({ 
-                stack: (e as Error).stack, 
+            this.connection.logger.error({
+                stack: (e as Error).stack,
                 // @ts-ignore
-                code: e.code, 
-                m, 
-                quoted: m.quoted 
+                code: e.code,
+                m,
+                quoted: m.quoted
             }, typeof e === 'string' ? e : (e as Error).message)
             if ((e as Error).name) {
                 // await m.reply(util.format(e))
@@ -157,15 +159,21 @@ export default class Listeners {
             try {
                 await new Print(this.connection.sock, this.connection.store).print(m)
             } catch (e) {
-                this.connection.logger.error({ 
-                    stack: (e as Error).stack, 
+                this.connection.logger.error({
+                    stack: (e as Error).stack,
                     // @ts-ignore
-                    code: e.code, 
-                    m, 
-                    quoted: 
-                    m.quoted 
+                    code: e.code,
+                    m,
+                    quoted: m.quoted
                 }, (e as Error).message)
             }
         }
+    }
+
+    async onCall (calls: BaileysEventMap['call']) {
+        await Promise.all(calls.map((call) => {
+            if (call.status !== 'ringing') return
+            return this.connection.sock.rejectCall(call.id, call.from)
+        }))
     }
 }

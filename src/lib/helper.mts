@@ -64,10 +64,11 @@ export interface SerializedMsg extends WAProto.WebMessageInfo {
     text: string
     quoted: QuotedSerializedMsg | null
     mentionedJid: string[]
-    reply (msg: AnyMessageContent | string, jid?: string): ReturnType<WASocket['sendMessage']>
+    reply (msg: AnyMessageContent | string, jid?: string): Promise<HelperMsg>
     download (): Promise<Buffer>
+    edit(msg: string): Promise<HelperMsg>
 }
-export interface QuotedSerializedMsg extends Omit<SerializedMsg, 'conn' | '_text' | 'logger'> {
+export interface QuotedSerializedMsg extends Omit<SerializedMsg, 'conn' | '_text' | 'logger' | 'quoted'> {
     fakeObj: WAProto.WebMessageInfo
 }
 
@@ -177,284 +178,310 @@ export default class Helper {
     public static serializeMessage () {
         return (Object as ModifiedObjectConstructor).defineProperties<WAProto.WebMessageInfo, SerializedMsg>(
             proto.WebMessageInfo.prototype, {
-            id: {
-                get () {
-                    return this.key.id!
+                id: {
+                    get () {
+                        return this.key.id!
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            isBaileys: {
-                get () {
-                    return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id?.length === 12 || false
+                isBaileys: {
+                    get () {
+                        return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id?.length === 12 || false
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            chat: {
-                get () {
-                    return jidNormalizedUser(this.key.remoteJid!)
+                chat: {
+                    get () {
+                        return jidNormalizedUser(this.key.remoteJid!)
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            isGroup: {
-                get () {
-                    return this.chat.endsWith('@g.us')
+                isGroup: {
+                    get () {
+                        return this.chat.endsWith('@g.us')
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            sender: {
-                get () {
-                    const me = this.conn?.user?.id
-                    return jidNormalizedUser(
-                        this.key?.fromMe ? me
-                            : (this.participant || this.key.participant || this.chat || '')
-                    )
+                sender: {
+                    get () {
+                        const me = this.conn?.user?.id
+                        return jidNormalizedUser(
+                            this.key?.fromMe ? me
+                                : (this.participant || this.key.participant || this.chat || '')
+                        )
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            fromMe: {
-                get () {
-                    const me = this.conn?.user?.id
-                    return this.key?.fromMe || areJidsSameUser(me, this.sender) || false
-                }
-            },
-            sentSource: {
-                get () {
-                    return getDevice(this.sender)
-                }
-            },
-            mtype: {
-                get () {
-                    if (!this.message)
-                        return ''
-                    return getContentType(this.message) || ''
-                },
-                enumerable: true
-            },
-            msg: {
-                get () {
-                    if (!this.message)
-                        return null
-                    return this.message[this.mtype as keyof typeof this.message]
-                }
-            },
-            mediaMessage: {
-                get () {
-                    if (!this.msg || typeof this.msg === 'string')
-                        return null
-                    const Message: WAProto.IMessage | null = (
-                        (('url' in this.msg && this.msg.url) ||
-                            ('directPath' in this.msg && this.msg.directPath)) ? { ...this.message }
-                            : extractMessageContent(this.message)) || null
-                    if (!Message)
-                        return null
-                    const mtype = getContentType(Message)!
-                    return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(Message) : null
-                },
-                enumerable: true
-            },
-            mediaType: {
-                get () {
-                    let message = this.mediaMessage
-                    if (!message)
-                        return null
-                    return Object.keys(message)[0]
-                },
-                enumerable: true,
-            },
-            quoted: {
-                get () {
-                    const self: SerializedMsg = this
-                    const msg = self.msg
-                    const contextInfo = msg && typeof msg !== 'string' && 'contextInfo' in msg && msg.contextInfo ? msg.contextInfo : undefined
-                    const quoted = contextInfo?.quotedMessage
-                    if (!msg || !contextInfo || !quoted)
-                        return null
-                    const type = getContentType(quoted)
-                    let q = quoted[type!]!
-                    const text = typeof q === 'string' ? q
-                        : q && 'text' in q && q.text ? q.text
-                            : ''
-                    try {
-                        return (Object as ModifiedObjectConstructor).defineProperties<unknown, QuotedSerializedMsg>(
-                            JSON.parse(JSON.stringify(typeof q === 'string' ? { text } : q)), {
-                            id: {
-                                get () {
-                                    return contextInfo.stanzaId!
-                                },
-                                enumerable: true
-                            },
-                            chat: {
-                                get () {
-                                    return contextInfo.remoteJid || self.chat
-                                },
-                                enumerable: true
-                            },
-                            isBaileys: {
-                                get () {
-                                    return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id.length === 12 || false
-                                },
-                                enumerable: true
-                            },
-                            sender: {
-                                get () {
-                                    return jidNormalizedUser(contextInfo.participant || this.chat || '')
-                                },
-                                enumerable: true
-                            },
-                            fromMe: {
-                                get () {
-                                    return areJidsSameUser(this.sender, self.conn?.user?.id)
-                                },
-                                enumerable: true,
-                            },
-                            sentSource: {
-                                get () {
-                                    return getDevice(this.sender)
-                                }
-                            },
-                            text: {
-                                get () {
-                                    return text ||
-                                        (q && typeof q !== 'string' && 'caption' in q && q.caption ? q.caption
-                                            : q && typeof q !== 'string' && 'contentText' in q && q.contentText ? q.contentText
-                                                : q && typeof q !== 'string' && 'selectedDisplayText' in q && q.selectedDisplayText ? q.selectedDisplayText
-                                                    : '')
-                                },
-                                enumerable: true
-                            },
-                            mentionedJid: {
-                                get () {
-                                    return q && typeof q !== 'string' && 'contextInfo' in q && q.contextInfo?.mentionedJid?.length ? q.contextInfo.mentionedJid
-                                        : []
-                                },
-                                enumerable: true
-                            },
-                            fakeObj: {
-                                get () {
-                                    return proto.WebMessageInfo.fromObject({
-                                        key: {
-                                            fromMe: this.fromMe,
-                                            remoteJid: this.chat,
-                                            id: this.id
-                                        },
-                                        message: quoted,
-                                        ...(self.isGroup ? { participant: this.sender } : {})
-                                    })
-                                }
-                            },
-                            msg: {
-                                get () {
-                                    return q
-                                }
-                            },
-                            mtype: {
-                                get () {
-                                    return type || ''
-                                },
-                                enumerable: true
-                            },
-                            mediaMessage: {
-                                get () {
-                                    if (typeof q === 'string')
-                                        return null
-                                    const Message = (
-                                        (('url' in q && q.url) ||
-                                            ('directPath' in q && q.directPath)) ? { ...quoted } : extractMessageContent(quoted)
-                                    )
-                                    if (!Message)
-                                        return null
-                                    const mtype = getContentType(Message)!
-                                    return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(Message) : null
-                                },
-                                enumerable: true
-                            },
-                            mediaType: {
-                                get () {
-                                    let message = this.mediaMessage
-                                    if (!message)
-                                        return null
-                                    return Object.keys(message)[0]
-                                },
-                                enumerable: true,
-                            },
-                            reply: {
-                                value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']> {
-                                    // if msg is string convert to AnyMessageContent['text']
-                                    if (typeof msg === 'string')
-                                        msg = { text: msg }
-                                    return self.conn!.reply(jid || this.chat, msg, this.fakeObj, options)
-                                }
-                            },
-                            download: {
-                                value () {
-                                    return downloadMediaMessage(this.fakeObj, 'buffer', {}, {
-                                        // @ts-ignore
-                                        logger: self.logger!.child({ class: 'download' }),
-                                        reuploadRequest: self.conn!.updateMediaMessage
-                                    }) as Promise<Buffer>
-                                },
-                                enumerable: true
-                            }
-                        }) as QuotedSerializedMsg
-                    } catch (e) {
-                        console.error(e, type, q, quoted)
-                        return null
+                fromMe: {
+                    get () {
+                        const me = this.conn?.user?.id
+                        return this.key?.fromMe || areJidsSameUser(me, this.sender) || false
                     }
                 },
-                enumerable: true
-            },
+                sentSource: {
+                    get () {
+                        return getDevice(this.sender)
+                    }
+                },
+                mtype: {
+                    get () {
+                        if (!this.message)
+                            return ''
+                        return getContentType(this.message) || ''
+                    },
+                    enumerable: true
+                },
+                msg: {
+                    get () {
+                        if (!this.message)
+                            return null
+                        return this.message[this.mtype as keyof typeof this.message]
+                    }
+                },
+                mediaMessage: {
+                    get () {
+                        if (!this.msg || typeof this.msg === 'string')
+                            return null
+                        const message: WAProto.IMessage | null = (
+                            (('url' in this.msg && this.msg.url) ||
+                                ('directPath' in this.msg && this.msg.directPath)) ? { ...this.message }
+                                : extractMessageContent(this.message)) || null
+                        if (!message)
+                            return null
+                        const mtype = getContentType(message)!
+                        return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(message) : null
+                    },
+                    enumerable: true
+                },
+                mediaType: {
+                    get () {
+                        let message = this.mediaMessage
+                        if (!message)
+                            return null
+                        return Object.keys(message)[0]
+                    },
+                    enumerable: true,
+                },
+                quoted: {
+                    get () {
+                        const self: SerializedMsg = this
+                        const msg = self.msg
+                        const contextInfo = msg && typeof msg !== 'string' && 'contextInfo' in msg && msg.contextInfo ? msg.contextInfo : undefined
+                        const quoted = contextInfo?.quotedMessage
+                        if (!msg || !contextInfo || !quoted)
+                            return null
+                        const type = getContentType(quoted)
+                        let q = quoted[type!]!
+                        const text = typeof q === 'string' ? q
+                            : q && 'text' in q && q.text ? q.text
+                                : ''
+                        try {
+                            return (Object as ModifiedObjectConstructor).defineProperties<WAProto.WebMessageInfo, QuotedSerializedMsg>(
+                                JSON.parse(JSON.stringify(typeof q === 'string' ? { text } : q)), {
+                                    id: {
+                                        get () {
+                                            return contextInfo.stanzaId!
+                                        },
+                                        enumerable: true
+                                    },
+                                    chat: {
+                                        get () {
+                                            return contextInfo.remoteJid || self.chat
+                                        },
+                                        enumerable: true
+                                    },
+                                    isGroup: {
+                                        get () {
+                                            return this.id.endsWith('@g.us')
+                                        },
+                                        enumerable: true
+                                    },
+                                    isBaileys: {
+                                        get () {
+                                            return this.id?.length === 16 || this.id?.startsWith('3EB0') && this.id.length === 12 || false
+                                        },
+                                        enumerable: true
+                                    },
+                                    sender: {
+                                        get () {
+                                            return jidNormalizedUser(contextInfo.participant || this.chat || '')
+                                        },
+                                        enumerable: true
+                                    },
+                                    fromMe: {
+                                        get () {
+                                            return areJidsSameUser(this.sender, self.conn?.user?.id)
+                                        },
+                                        enumerable: true,
+                                    },
+                                    sentSource: {
+                                        get () {
+                                            return getDevice(this.sender)
+                                        }
+                                    },
+                                    text: {
+                                        get () {
+                                            return text ||
+                                                (q && typeof q !== 'string' && 'caption' in q && q.caption ? q.caption
+                                                    : q && typeof q !== 'string' && 'contentText' in q && q.contentText ? q.contentText
+                                                        : q && typeof q !== 'string' && 'selectedDisplayText' in q && q.selectedDisplayText ? q.selectedDisplayText
+                                                            : '')
+                                        },
+                                        enumerable: true
+                                    },
+                                    mentionedJid: {
+                                        get () {
+                                            return q && typeof q !== 'string' && 'contextInfo' in q && q.contextInfo?.mentionedJid?.length ? q.contextInfo.mentionedJid
+                                                : []
+                                        },
+                                        enumerable: true
+                                    },
+                                    fakeObj: {
+                                        get () {
+                                            return proto.WebMessageInfo.fromObject({
+                                                key: {
+                                                    fromMe: this.fromMe,
+                                                    remoteJid: this.chat,
+                                                    id: this.id
+                                                },
+                                                message: quoted,
+                                                ...(self.isGroup ? { participant: this.sender } : {})
+                                            })
+                                        }
+                                    },
+                                    msg: {
+                                        get () {
+                                            return q
+                                        }
+                                    },
+                                    mtype: {
+                                        get () {
+                                            return type || ''
+                                        },
+                                        enumerable: true
+                                    },
+                                    mediaMessage: {
+                                        get () {
+                                            if (typeof q === 'string')
+                                                return null
+                                            const message = (
+                                                (('url' in q && q.url) ||
+                                                    ('directPath' in q && q.directPath)) ? { ...quoted } : extractMessageContent(quoted)
+                                            )
+                                            if (!message)
+                                                return null
+                                            const mtype = getContentType(message)!
+                                            return MEDIA_TYPE.includes(mtype) ? proto.Message.fromObject(message) : null
+                                        },
+                                        enumerable: true
+                                    },
+                                    mediaType: {
+                                        get () {
+                                            let message = this.mediaMessage
+                                            if (!message)
+                                                return null
+                                            return Object.keys(message)[0]
+                                        },
+                                        enumerable: true,
+                                    },
+                                    reply: {
+                                        async value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions) {
+                                            // if msg is string convert to AnyMessageContent['text']
+                                            if (typeof msg === 'string')
+                                                msg = { text: msg }
+                                            const messageInfo = (await  self.conn!.reply(jid || this.chat, msg, this.fakeObj, options))!
+                                            return Helper.message(messageInfo, { conn: self.conn!, logger: self.logger! })
+                                        }
+                                    },
+                                    download: {
+                                        value () {
+                                            return downloadMediaMessage(this.fakeObj, 'buffer', {}, {
+                                                // @ts-ignore
+                                                logger: self.logger!.child({ class: 'download' }),
+                                                reuploadRequest: self.conn!.updateMediaMessage
+                                            }) as Promise<Buffer>
+                                        },
+                                        enumerable: true
+                                    },
+                                    edit: {
+                                        async value (msg: string) {
+                                            const messageInfo = (await self.conn!.sendMessage(this.chat, { edit: this.fakeObj.key, text: msg }))!
+                                            return Helper.message(messageInfo, { conn: self.conn!, logger: self.logger! })
+                                        }
+                                    }
+                                }) as QuotedSerializedMsg
+                        } catch (e) {
+                            console.error(e, type, q, quoted)
+                            return null
+                        }
+                    },
+                    enumerable: true
+                },
 
-            _text: {
-                value: null,
-                writable: true,
-            },
-            text: {
-                get () {
-                    const msg = this.msg
-                    const text = typeof msg === 'string' ? msg
-                        : msg && 'text' in msg && msg.text ? msg.text
-                            : msg && 'caption' in msg && msg.caption ? msg.caption
-                                : msg && 'contentText' in msg && msg.contentText ? msg.contentText
-                                    : msg && 'selectedDisplayText' in msg && msg.selectedDisplayText ? msg.selectedDisplayText
-                                        : msg && 'hydratedTemplate' in msg && msg.hydratedTemplate ? msg.hydratedTemplate.hydratedContentText
-                                            : ''
-                    return typeof this._text === 'string' ? this._text
-                        : typeof text === 'string' ? text
-                            : ''
+                _text: {
+                    value: null,
+                    writable: true,
                 },
-                set (str) {
-                    return this._text = str
+                text: {
+                    get () {
+                        const msg = this.msg
+                        const text = typeof msg === 'string' ? msg
+                            : msg && 'text' in msg && msg.text ? msg.text
+                                : msg && 'caption' in msg && msg.caption ? msg.caption
+                                    : msg && 'contentText' in msg && msg.contentText ? msg.contentText
+                                        : msg && 'selectedDisplayText' in msg && msg.selectedDisplayText ? msg.selectedDisplayText
+                                            : msg && 'hydratedTemplate' in msg && msg.hydratedTemplate ? msg.hydratedTemplate.hydratedContentText
+                                                : ''
+                        return typeof this._text === 'string' ? this._text
+                            : typeof text === 'string' ? text
+                                : ''
+                    },
+                    set (str) {
+                        return this._text = str
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            mentionedJid: {
-                get () {
-                    if (!this.msg || typeof this.msg === 'string' || !('contextInfo' in this.msg))
-                        return []
-                    return this.msg.contextInfo?.mentionedJid?.length ? this.msg.contextInfo.mentionedJid : []
+                mentionedJid: {
+                    get () {
+                        if (!this.msg || typeof this.msg === 'string' || !('contextInfo' in this.msg))
+                            return []
+                        return this.msg.contextInfo?.mentionedJid?.length ? this.msg.contextInfo.mentionedJid : []
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            reply: {
-                value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions): ReturnType<WASocket['sendMessage']> {
-                    // if msg is string convert to AnyMessageContent['text']
-                    if (typeof msg === 'string')
-                        msg = { text: msg }
-                    return this.conn!.reply(jid || this.chat, msg, this, options)
+                reply: {
+                    async value (msg: AnyMessageContent | string, jid?: string, options?: MiscMessageGenerationOptions) {
+                        // if msg is string convert to AnyMessageContent['text']
+                        if (typeof msg === 'string')
+                            msg = { text: msg }
+                        const messageInfo = (await this.conn!.reply(jid || this.chat, msg, this, options))!
+                        return Helper.message(messageInfo, { conn: this.conn!, logger: this.logger! })
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            },
-            download: {
-                value () {
-                    return downloadMediaMessage(this, 'buffer', {}, {
-                        // @ts-ignore
-                        logger: this.logger!.child({ class: 'download' }),
-                        reuploadRequest: this.conn!.updateMediaMessage
-                    }) as Promise<Buffer>
+                download: {
+                    value () {
+                        return downloadMediaMessage(this, 'buffer', {}, {
+                            // @ts-ignore
+                            logger: this.logger!.child({ class: 'download' }),
+                            reuploadRequest: this.conn!.updateMediaMessage
+                        }) as Promise<Buffer>
+                    },
+                    enumerable: true
                 },
-                enumerable: true
-            }
-        }) as SerializedMsg
+                edit: {
+                    async value(msg: string) {
+                        const messageInfo = (await this.conn!.sendMessage(this.chat, { edit: this.key, text: msg }))!
+                        return Helper.message(messageInfo, { conn: this.conn!, logger: this.logger! })
+                    }
+                },
+                conn: {
+                    value: undefined
+                },
+                logger: {
+                    value: undefined
+                }
+            })
     }
     // Inject some properties to Number.prototype
     public static serializeNumber () {
@@ -501,13 +528,19 @@ declare global {
     }
 }
 
-interface ModifiedPropertyDescriptor<T> extends PropertyDescriptor {
-    get?(): T
-    value?: T
+interface ModifiedPropertyDescriptorGet<Value> extends PropertyDescriptor {
+    get(): Value
+    value?: Value
 }
-type ModifiedPropertyDescriptorMap<U> = PropertyDescriptorMap & {
-    [key in keyof U]?: ModifiedPropertyDescriptor<U[key]>
+interface ModifiedPropertyDescriptorValue<Value> extends PropertyDescriptor {
+    get?(): Value
+    value: Value
+}
+type ModifiedPropertyDescriptorMap<This, Value> = PropertyDescriptorMap & {
+    [key in keyof Omit<Value, keyof This>]: ModifiedPropertyDescriptorGet<Value[key]> | ModifiedPropertyDescriptorValue<Value[key]>
 }
 interface ModifiedObjectConstructor extends ObjectConstructor {
-    defineProperties: <T, U>(o: T, properties: ModifiedPropertyDescriptorMap<U> & ThisType<U>) => T
+    defineProperties: <This, Value>(o: This, properties: ModifiedPropertyDescriptorMap<This, Value> & ThisType<Value>) => This
 }
+
+type E = Omit<SerializedMsg, keyof WAProto.WebMessageInfo>

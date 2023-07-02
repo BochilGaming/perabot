@@ -12,9 +12,7 @@ export default class _afk implements MessageablePlugin {
 You stop AFK${user.afkReason ? ' after ' + user.afkReason : ''}
 for ${(+new Date - user.afk).toTimeString()}
 `.trim()))
-            user.afk = -1
-            user.afkReason = ''
-            await user.save()
+            await users.update(m.sender, { afk: -1, afkReason: '' })
         }
 
         const jids = [...new Set([...(m.mentionedJid || []), ...(m.quoted ? [m.quoted.sender] : [])])]
@@ -25,7 +23,7 @@ for ${(+new Date - user.afk).toTimeString()}
             const reason = user.afkReason
             await m.reply(`
 Don't tag that person!
-That persion is AFK ${reason ? 'with reason ' + reason : 'for no reason'}
+That person is AFK ${reason ? 'with reason ' + reason : 'for no reason'}
 for ${(+new Date - afkTime).toTimeString()}
 `.trim())
         }))

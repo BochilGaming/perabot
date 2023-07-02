@@ -3,18 +3,21 @@ import fs from 'fs'
 import path from 'path'
 import sanitizeFile from 'sanitize-filename'
 
-export interface IDatabase<T> {
-    get (user: string): Promise<T | null>
-    save (filename: string, obj: T): Promise<any>
-    insert (key: string, data: Object | T, ifAbsent?: boolean): Promise<boolean>
-    update (key: string, data: Object | T, insertIfAbsent?: boolean): Promise<boolean>
-}
-
-export abstract class Database {
+export abstract class Database<T> {
     constructor(public folder: string) {
         this.initializeFolder()
     }
-    initializeFolder () {
+
+    abstract get (key: string): Promise<T | null>
+    /**
+     * Use `get` instead of `_get`
+     * @summary This function runs outside the mutex, and may cause a race condition
+    */
+    abstract _get (key: string): Promise<T | null>
+    abstract insert (key: string, data: Object | T, ifAbsent?: boolean): Promise<boolean>
+    abstract update (key: string, data: Object | T, insertIfAbsent?: boolean): Promise<boolean>
+
+    private initializeFolder () {
         if (fs.existsSync(this.folder)) return
         fs.mkdirSync(this.folder, { recursive: true })
     }
@@ -67,11 +70,11 @@ export abstract class Database {
      */
     has (
         key: string,
-        opts: { 
+        opts: {
             /** wrap with 'jidNormalizedUser' */
-            normalize?: boolean, 
+            normalize?: boolean,
             /** wrap with 'sanitizeFile'  */
-            sanitize?: boolean 
+            sanitize?: boolean
         } = {}
     ) {
         if (opts.normalize) key = jidNormalizedUser(key)
@@ -80,22 +83,32 @@ export abstract class Database {
         return fs.existsSync(file)
     }
 
-    _getFilePath (filename: string) {
+    private _getFilePath (filename: string) {
         if (!/\.json$/.test(filename))
             filename += '.json'
         return path.join(this.folder, filename)
     }
 }
 
-export interface IData {
-    verify: () => void
-    save: () => Promise<void>
-    saveSync: () => void
-}
-
-export abstract class data {
+export abstract class data<T> {
     constructor(
         public readonly _filename: string,
-        public readonly _db: Database,
+        public readonly _db: Database<T>,
     ) { }
+    abstract create (obj?: Object | null): void
+    abstract verify (): Promise<T>
+    /**
+     * Prefer to use `verify` instead of `verifySync`
+     */
+    abstract verifySync (): T
+    abstract save (): Promise<void>
+    /**
+     * Use `save` instead of `_save`
+     * @summary This function runs outside the mutex, and may cause a race condition
+     */
+    abstract _save (): Promise<void>
+    /**
+     * Prefer to use `save` instead of `saveSync`
+     */
+    abstract saveSync (): void
 }

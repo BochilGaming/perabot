@@ -1,4 +1,4 @@
-import { jidDecode, WAMessageStubType, WAProto } from '@whiskeysockets/baileys'
+import { jidDecode, jidNormalizedUser, WAMessageStubType, WAProto } from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import urlRegex from 'url-regex'
 import chalk from 'chalk'
@@ -75,10 +75,12 @@ ${chalk.green('%s')} ${chalk.blueBright('to')} ${chalk.green('%s')} ${chalk.blac
 
             console.log(m.error! instanceof Error ? chalk.red(log) : m.isCommand ? chalk.yellow(log) : log)
         }
-        if (m.messageStubParameters.length
-            && m.messageStubType != WAProto.WebMessageInfo.StubType.REVOKE
-            && m.messageStubType != WAProto.WebMessageInfo.StubType.CIPHERTEXT) console.log(
+        if (m.messageStubParameters.length) console.log(
                 (await Promise.all(m.messageStubParameters.map(async (jid) => {
+                    const normalizedJid = jidNormalizedUser(jid)
+                    // doesn't valid jid
+                    // it will be invalid when the message stub type is example REVOKE
+                    if (!normalizedJid) return jid
                     let name = await this.conn.getName(jid)
                     return chalk.gray(formatJidNumber(jid) + (name ? ' ~' + name : ''))
                 })))

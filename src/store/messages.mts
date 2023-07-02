@@ -1,14 +1,20 @@
 import baileys, { proto as _proto } from '@whiskeysockets/baileys'
 import sanitize from 'sanitize-filename'
-import { data, Database, IData, IDatabase } from '../database/database.mjs'
+import { data, Database } from '../database/database.mjs'
 import DBKeyedMutex, { ActionType } from '../database/mutex.mjs'
 import { LOGGER } from '../lib/logger.mjs'
+import NodeCache from 'node-cache'
 
 // @ts-ignore 
 const proto: typeof _proto = baileys.proto
-const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'store-messages' }))
+const messagesStoreMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'store-messages' }))
+const messagesStoreCache = new NodeCache({
+    stdTTL: 1 * 60,
+    checkperiod: 3 * 60,
+    useClones: false
+})
 
-export class MessageStore extends data implements IData, _proto.IWebMessageInfo {
+export class MessageStore extends data<_proto.IWebMessageInfo> implements _proto.IWebMessageInfo {
     // static readonly _keySchema = z.object({
     //     remoteJid: z.string().nullish(),
     //     fromMe: z.boolean().nullish(),
@@ -66,6 +72,8 @@ export class MessageStore extends data implements IData, _proto.IWebMessageInfo 
                 proto.WebMessageInfo.fromObject(obj)
             )
             for (const key in msg) {
+                // if (!(key in this))
+                //     console.warn(`Property ${key} doesn't exist in '${MessageStore.name}', but trying to insert with ${msg[key]}`)
                 // @ts-ignore
                 this[key] = msg[key]
             }
@@ -73,15 +81,29 @@ export class MessageStore extends data implements IData, _proto.IWebMessageInfo 
     }
 
     verify () {
-        return proto.WebMessageInfo.toObject(proto.WebMessageInfo.fromObject(this))
+        // no need to be wrapped in promises, it's just for consistency
+        return Promise.resolve(
+            proto.WebMessageInfo.toObject(
+                proto.WebMessageInfo.fromObject(this)
+            ) as _proto.IWebMessageInfo
+        )
     }
 
-    async save () {
-        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this, this._save.bind(this))
+    verifySync () {
+        return proto.WebMessageInfo.toObject(
+            proto.WebMessageInfo.fromObject(this)
+        ) as _proto.IWebMessageInfo
+    }
+
+    save () {
+        return messagesStoreMutex.mutex(this._filename, ActionType.WRITE, this._save.bind(this))
     }
 
     async _save () {
-        await this._db.save(this._filename, this.verify())
+        const id = this._filename
+        const data = await this.verify()
+        await this._db.save(id, data)
+        messagesStoreCache.set(id, data)
     }
 
     saveSync () {
@@ -89,47 +111,78 @@ export class MessageStore extends data implements IData, _proto.IWebMessageInfo 
     }
 }
 
-export class MessagesStore extends Database implements IDatabase<MessageStore> {
+export class MessagesStore extends Database<MessageStore> {
     constructor(folder: string = './store/messages') {
         super(folder)
     }
 
-    async insert (id: string, data: Object | MessageStore, ifAbsent?: boolean) {
+    insert (id: string, data: Object | MessageStore, ifAbsent?: boolean) {
         const filename = sanitize(id)
+        return messagesStoreMutex.mutex(
+            filename,
+            ActionType.WRITE,
+            this._insert.bind(this, filename, data, ifAbsent)
+        )
+    }
+
+    /**
+    * Use `insert` instead of `_insert`
+    * @summary This function runs outside the mutex, and may cause a race condition
+    */
+    async _insert (filename: string, data: Object | MessageStore, ifAbsent?: boolean) {
         // Only insert if absent, if present just return
         if (ifAbsent && this.has(filename)) return false
         if (data instanceof MessageStore) {
-            await data.save()
+            await data._save()
             return true
         }
-        await new MessageStore(filename, this, data)
-            .save()
+        await new MessageStore(filename, this, data)._save()
         return true
     }
 
-    async update (id: string, data: Object | MessageStore, insertIfAbsent?: boolean | undefined) {
+    update (
+        id: string,
+        data: Object | MessageStore | ((message: MessageStore | _proto.IWebMessageInfo) => void | Promise<void>),
+        insertIfAbsent?: boolean | undefined) {
         const filename = sanitize(id)
-        const exist = this.has(filename)
-        if (insertIfAbsent && !exist) {
-            await this.insert(id, data)
-            return true
-        } else if (exist) {
-            const message = await this.get(id)
-            message.create(data)
-            await message.save()
-            return true
-        }
-        return false
+        return messagesStoreMutex.mutex(filename,
+            ActionType.READ | ActionType.WRITE,
+            async () => {
+                const existing = await this._get(filename)
+                if (insertIfAbsent && !existing) {
+                    const isFn = typeof data === 'function'
+                    const obj = !isFn ? data : {}
+                    if (isFn) {
+                        await data(obj)
+                    }
+                    const success = await this._insert(id, data)
+                    if (!success)
+                        console.warn('Insert message', id, 'with data', data, 'but not successfully')
+                } else if (existing) {
+                    const message = await this._get(id)
+                    if (typeof data === 'function') {
+                        await data(message!)
+                    } else {
+                        message!.create({ ...existing, data })
+                    }
+                    await message!._save()
+                    return true
+                }
+                return false
+            }
+        )
     }
 
     async get (id: string) {
         const filename = sanitize(id)
-        return await keyedMutex.mutex(id, ActionType.READ, this, this._get.bind(this, filename))
+        return await messagesStoreMutex.mutex(id, ActionType.READ, this._get.bind(this, filename))
     }
 
     async _get (filename: string) {
-        const data = await this.read(filename)
+        const data = messagesStoreCache.get(filename) ?? await this.read(filename)
+        if (!data) return null
         const msg = new MessageStore(filename, this, data)
+        messagesStoreCache.set(filename, await msg.verify())
         return msg
     }
 }

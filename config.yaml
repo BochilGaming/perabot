@@ -1,6 +1,6 @@
 owners:
   - number: '6281319944687'
-    name: 'BG'
+    name: BG
     # If you type '/owner' and if isCreator is true, this number will be shown as the owner
     isCreator: true
     # This field below will be displayed in vcard
@@ -18,3 +18,9 @@ owners:
 sticker:
   packname: Create stickers at wa.me/6285713964963
   author: ©2023 Metro Bot
+
+donations: 
+  gopay: '6285713964963'
+  dana: '6285713964963'
+  saweria: https://saweria.co/BochilGaming
+  # other donations with format Record<string, string>

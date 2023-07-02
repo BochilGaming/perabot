@@ -57,6 +57,9 @@ export default class Connection {
             if (events['messages.upsert']) {
                 this.listeners!.onMessage(events['messages.upsert'])
             }
+            if (events['call']) {
+                this.listeners!.onCall(events['call'])
+            }
         })
     }
 }

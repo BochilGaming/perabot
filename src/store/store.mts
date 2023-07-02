@@ -1,4 +1,4 @@
-import { ChatGroupStore, ChatPrivateStore, ChatsStore, MessagesStore } from './index.mjs'
+import { ChatGroupStore, ChatsStore, MessagesStore } from './index.mjs'
 import path from 'path'
 import fs from 'fs'
 import pino from 'pino'
@@ -53,30 +53,25 @@ export default class Store {
                 await Promise.all([
                     ...newContacts.map(async (newContact) => {
                         const id = newContact.id!
-                        if (!id) {
-                            this.#logger?.warn(newContact, 'got contact but without id!')
-                            return false
-                        }
                         await this.chats.update(id, { ...newContact, isContact: true }, true)
                     }),
                     ...newMessages.map(async (newMessage) => {
                         const id = newMessage.key.id!
-                        if (!id) {
-                            this.#logger?.warn(newMessage, 'got message but without id!')
-                            return false
-                        }
-                        const jid = jidNormalizedUser(newMessage.key.remoteJid!)
+                        const jid = newMessage.key.remoteJid!
                         const name = newMessage.pushName || newMessage.verifiedBizName
-                        const [_, chat] = await Promise.all([
+                        await Promise.all([
                             this.messages.update(id, newMessage, true),
-                            jid.endsWith('@s.whatsapp.net') && name ? this.chats.get(jid) : Promise.resolve()
+                            jid.endsWith('@s.whatsapp.net') && name ? this.chats.update(jid, { name }, true) : Promise.resolve()
                         ])
-                        if (chat instanceof ChatPrivateStore) {
-                            chat.create({ name })
-                            await chat.save()
-                        }
                     })
                 ])
+            }
+
+            if (events['contacts.upsert']) {
+                const contacts = events['contacts.upsert']
+                await Promise.all(contacts.map((contact) => {
+                    return this.chats.update(contact.id!, { ...contact, isContact: true }, true)
+                }))
             }
 
             if (events['contacts.update']) {
@@ -92,12 +87,7 @@ export default class Store {
                 const newChats = events['chats.upsert']
                 // TODO: handle 'messages'
                 await Promise.all(newChats.map((newChat) => {
-                    const updated = this.chats.update(newChat.id, newChat, true)
-                    if (newChat.messages) console.log(
-                        newChat.messages[0],
-                        newChat.messages[0]?.message,
-                        newChat.messages)
-                    return updated
+                    return this.chats.update(newChat.id, newChat, true)
                 }))
             }
 
@@ -105,20 +95,20 @@ export default class Store {
                 const updates = events['chats.update']
                 // TODO: handle 'tcToken' update
                 await Promise.all(updates.map(async (update) => {
-                    const chat = await this.chats.get(update.id!)
-                    if (!chat) {
-                        return this.chats.insert(update.id!, { ...update }, true)
-                    }
-                    if (update.unreadCount! > 0)
-                        update.unreadCount! += 'unreadCount' in chat && typeof chat.unreadCount === 'number' && chat.unreadCount ? chat.unreadCount : 0
-
-                    const name = update.name || update.displayName
-                    chat.create({
-                        ...update,
-                        ...(name ? { name } : {})
-                    })
-                    return chat.save()
+                    await this.chats.update(update.id!, (chat) => {
+                        if (update.unreadCount! > 0)
+                            update.unreadCount! += 'unreadCount' in chat && typeof chat.unreadCount === 'number' && chat.unreadCount ? chat.unreadCount : 0
+                        if (update.displayName) {
+                            update.name ||= update.displayName
+                        }
+                        Object.assign(chat, update)
+                    }, true)
                 }))
+            }
+
+            if (events['presence.update']) {
+                const { id, presences: update } = events['presence.update']
+                this.#logger?.debug({ id, update })
             }
 
             if (events['messages.upsert']) {
@@ -135,21 +125,15 @@ export default class Store {
                             const promises: Promise<any>[] = [this.messages.update(id, msg, true)]
                             // update name 
                             const name = msg.pushName || msg.verifiedBizName
-                            const jid = jidNormalizedUser(msg.key.remoteJid!)
+                            const jid = msg.key.remoteJid!
                             if (name && jid.endsWith('@s.whatsapp.net')) {
-                                const chat = await this.chats.get(jid)
-                                if (!chat)
-                                    promises.push(this.chats.insert(jid, { id: jid, name }, true))
-                                else if (name && 'name' in chat && chat.name !== name) {
-                                    // insert new name
-                                    chat.create({ name })
-                                    promises.push(chat.save())
-                                }
+                                promises.push(this.chats.update(jid, (user) => {
+                                    if ('name' in user) user.name = name ?? user.name
+                                }, true))
                             }
 
                             if (type === 'notify') {
-                                // no need to normalize, because jid already normalized
-                                if (!this.chats.has(jid, { sanitize: true }))
+                                if (!this.chats.has(jid, { sanitize: true, normalize: true }))
                                     ev.emit('chats.upsert', [{
                                         id: jid,
                                         conversationTimestamp: toNumber(msg.messageTimestamp),
@@ -173,24 +157,43 @@ export default class Store {
                 }))
             }
 
+            if (events['message-receipt.update']) {
+                const updates = events['message-receipt.update']
+                await Promise.all(updates.map(async ({ key, receipt }) => {
+                    const id = key.id!
+                    await this.messages.update(id, (message) => {
+                        updateMessageWithReceipt(message, receipt)
+                    }, false)
+                }))
+            }
+
+            if (events['messages.reaction']) {
+                const updates = events['messages.reaction']
+                await Promise.all(updates.map(async ({ key, reaction }) => {
+                    const id = key.id!
+                    await this.messages.update(id, (message) => {
+                        updateMessageWithReaction(message, reaction)
+                    }, false)
+                }))
+            }
+
             if (events['groups.update']) {
                 const updates = events['groups.update']
                 await Promise.all(updates.map(async (update) => {
                     const id = update.id!
-                    const chat = await this.chats.get(id)
-                    if (chat && 'metadata' in chat) {
-                        chat.create({ metadata: { ...chat.metadata, ...update } })
-                        await chat.save()
-                    } else {
-                        this.#logger?.debug({ update }, `got update for non-existant group ${id} metadata`)
-                    }
+                    await this.chats.update(id, (group) => {
+                        if (!('metadata' in group) || !group.metadata) {
+                            return this.#logger?.debug({ update }, `got update for non-existant group ${id} metadata`)
+                        }
+                        group.metadata = { ...group.metadata, ...update }
+                    }, false)
                 }))
             }
 
             if (events['group-participants.update']) {
                 const { id, participants, action } = events['group-participants.update']
-                const group = await this.chats.get(id)
-                if (group && 'metadata' in group && group.metadata) {
+                await this.chats.update(id, (group) => {
+                    if (!('metadata' in group) || !group.metadata) return
                     switch (action) {
                         case 'add':
                             group.metadata.participants.push(...participants.map(id => ({ id, isAdmin: false, isSuperAdmin: false })))
@@ -202,37 +205,12 @@ export default class Store {
                                     participant.isAdmin = action === 'promote'
                                 }
                             }
-
                             break
                         case 'remove':
                             group.metadata.participants = group.metadata.participants.filter(p => !participants.includes(p.id))
                             break
                     }
-                    await group.save()
-                }
-            }
-
-
-            if (events['message-receipt.update']) {
-                const updates = events['message-receipt.update']
-                for (const { key, receipt } of updates) {
-                    const id = key.id!
-                    if (!this.messages.has(id)) return
-                    const msg = await this.messages.get(id)
-                    updateMessageWithReceipt(msg, receipt)
-                    await msg.save()
-                }
-            }
-
-            if (events['messages.reaction']) {
-                const updates = events['messages.reaction']
-                await Promise.all(updates.map(async ({ key, reaction }) => {
-                    const id = key.id!
-                    if (!this.messages.has(id)) return
-                    const msg = await this.messages.get(id)
-                    updateMessageWithReaction(msg, reaction)
-                    await msg.save()
-                }))
+                }, false)
             }
         })
     }
@@ -243,7 +221,7 @@ export default class Store {
             console.warn(`Trying to get metadata from store but group ${id} doesn't exist in store. Re-trying using 'conn.groupMetadata'`)
             const metadata = await groupMetadata(id)
             // If group chat not found in store -- insert 
-            await this.chats.insert(id, { id, metadata })
+            await this.chats.insert(id, { metadata })
             return { ...metadata, id }
         }
         if (!(chat instanceof ChatGroupStore))
@@ -257,7 +235,7 @@ export default class Store {
         const chat = await this.chats.get(id)
         if (!chat || !chat.imgUrl || chat.imgUrl === 'changed') {
             const imgUrl = await profilePictureUrl(jidNormalizedUser(id), type)
-            await this.chats.update(id, { id, imgUrl }, true)
+            await this.chats.update(id, { imgUrl }, true)
             return imgUrl
         }
         return chat.imgUrl

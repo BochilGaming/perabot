@@ -1,16 +1,21 @@
 import { Contact, GroupMetadata, jidNormalizedUser } from '@whiskeysockets/baileys'
 import sanitize from 'sanitize-filename'
-import { data, Database, IData, IDatabase, } from '../database/database.mjs'
+import { data, Database } from '../database/database.mjs'
 import DBKeyedMutex, { ActionType } from '../database/mutex.mjs'
 import { z } from 'zod'
 import { LOGGER } from '../lib/logger.mjs'
+import NodeCache from 'node-cache'
 
+const chatsStoreMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'store-chats' }))
+const chatsStoreCache = new NodeCache({
+    stdTTL: 1 * 60,
+    checkperiod: 3 * 60,
+    useClones: false
+})
 
-const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'store-chats' }))
-
-export class ChatPrivateStore extends data implements IData, z.infer<typeof ChatPrivateStore._schema> {
+type ChatPrivateStoreSchema = z.infer<typeof ChatPrivateStore._schema>
+export class ChatPrivateStore extends data<ChatPrivateStoreSchema> implements ChatPrivateStoreSchema {
     static readonly _schema = z.object({
-        id: z.string(),
         isContact: z.boolean().optional(),
         name: z.string().nullish(),
         notify: z.string().nullish(),
@@ -35,7 +40,6 @@ export class ChatPrivateStore extends data implements IData, z.infer<typeof Chat
     protected _isPrivate = true
     protected _isGroup = false
 
-    id!: string
     isContact?: boolean
     name?: Contact['name']
     notify?: Contact['notify']
@@ -56,24 +60,17 @@ export class ChatPrivateStore extends data implements IData, z.infer<typeof Chat
         for (const key in data) {
             // ? maybe will cause an error
             if (data[key as keyof z.infer<typeof ChatPrivateStore._schema>] == undefined) continue
-            // if (!(key in this))
-            //     console.warn(`Property ${key} doesn't exist in '${ChatPrivateStore.name}', but trying to insert with ${data}`)
-
-            if (key === 'id' && this.id && this.id !== data[key]) {
-                throw new Error(`Trying to change the property id. Id before ${this.id} -- change to ${data[key]}`)
-            }
             // @ts-ignore
             this[key] = data[key]
         }
     }
 
     verify () {
-        return ChatPrivateStore._schema.parse(this)
+        return ChatPrivateStore._schema.parseAsync(this)
     }
 
-    setId (id: string) {
-        this.id = id
-        this.verify()
+    verifySync () {
+        return ChatPrivateStore._schema.parse(this)
     }
 
     isGroup () {
@@ -85,11 +82,14 @@ export class ChatPrivateStore extends data implements IData, z.infer<typeof Chat
     }
 
     async save () {
-        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this, this._save.bind(this))
+        return await chatsStoreMutex.mutex(this._filename, ActionType.WRITE, this._save.bind(this))
     }
 
     async _save () {
-        await this._db.save(this._filename, this.verify())
+        const id = this._filename
+        const data = await this.verify()
+        await this._db.save(id, data)
+        chatsStoreCache.set(id, data)
     }
 
     saveSync () {
@@ -97,10 +97,9 @@ export class ChatPrivateStore extends data implements IData, z.infer<typeof Chat
     }
 }
 
-
-export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGroupStore._schema> {
+type ChatGroupStoreSchema = z.infer<typeof ChatGroupStore._schema>
+export class ChatGroupStore extends data<ChatGroupStoreSchema> implements ChatGroupStoreSchema {
     static readonly _schema = z.object({
-        id: z.string(),
         imgUrl: z.string().nullish(),
         metadata: z.object({
             owner: z.string().optional(),
@@ -128,7 +127,6 @@ export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGr
     protected _isPrivate = false
     protected _isGroup = true
 
-    id!: string
     imgUrl?: Contact['imgUrl']
     metadata?: Omit<GroupMetadata, 'id'>
 
@@ -142,23 +140,17 @@ export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGr
         const data: Partial<z.infer<typeof ChatGroupStore._schema>> = ChatGroupStore._schema.partial().nullish().parse(obj) || {}
         for (const key in data) {
             if (data[key as keyof z.infer<typeof ChatGroupStore._schema>]) continue
-            // if (!(key in this))
-            //     console.warn(`Property ${key} doesn't exist in '${ChatGroupStore.name}', but trying to insert with ${data}`)
 
-            if (key === 'id' && this.id && this.id !== data[key]) {
-                throw new Error(`Trying to change the property id. Id before ${this.id} -- change to ${data[key]}`)
-            }
             // @ts-ignore
             this[key] = data[key]
         }
     }
     verify () {
-        return ChatGroupStore._schema.parse(this)
+        return ChatGroupStore._schema.parseAsync(this)
     }
 
-    setId (id: string) {
-        this.id = id
-        this.verify()
+    verifySync () {
+        return ChatGroupStore._schema.parse(this)
     }
 
     isGroup () {
@@ -170,11 +162,14 @@ export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGr
     }
 
     async save () {
-        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this, this._save.bind(this))
+        return await chatsStoreMutex.mutex(this._filename, ActionType.WRITE, this._save.bind(this))
     }
 
     async _save () {
-        await this._db.save(this._filename, this.verify())
+        const id = this._filename
+        const data = await this.verify()
+        await this._db.save(id, data)
+        chatsStoreCache.set(id, data)
     }
 
     saveSync () {
@@ -182,61 +177,89 @@ export class ChatGroupStore extends data implements IData, z.infer<typeof ChatGr
     }
 }
 
-export class ChatsStore extends Database implements IDatabase<ChatPrivateStore | ChatGroupStore> {
+export class ChatsStore extends Database<ChatPrivateStore | ChatGroupStore> {
     constructor(folder: string = './store/chats') {
         super(folder)
     }
 
-    async insert (user: string, data: Object | ChatPrivateStore | ChatGroupStore, ifAbsent?: boolean) {
-        const filename = sanitize(jidNormalizedUser(user))
+    insert (jid: string, data: Object | ChatPrivateStore | ChatGroupStore, ifAbsent?: boolean) {
+        const filename = sanitize(jidNormalizedUser(jid))
+        return chatsStoreMutex.mutex(
+            filename,
+            ActionType.WRITE,
+            this._insert.bind(this, filename, data, ifAbsent)
+        )
+    }
+
+    /**
+     * Use `insert` instead of `_insert`
+     */
+    async _insert (filename: string, data: Object | ChatPrivateStore | ChatGroupStore, ifAbsent?: boolean) {
         // Only insert if absent, if present just return
         if (ifAbsent && this.has(filename)) return false
 
         if (data instanceof ChatPrivateStore ||
             data instanceof ChatGroupStore) {
-            await data.save()
+            await data._save()
             return true
         }
 
-        const isGroup = (data && 'id' in data && typeof data.id === 'string' && data.id.endsWith('@g.us'))
-            || user.endsWith('@g.us')
-        const chat =  new (isGroup ? ChatGroupStore : ChatPrivateStore)(filename, this, data)
-        chat.setId(user)
-        await chat.save()
+        const isGroup = filename.endsWith('@g.us')
+        const chat = new (isGroup ? ChatGroupStore : ChatPrivateStore)(filename, this, data)
+        await chat._save()
         return true
     }
 
-    async update (user: string, data: Object | ChatPrivateStore | ChatGroupStore, insertIfAbsent?: boolean | undefined) {
-        const existing = await this.get(user)
-        // insert if absent
-        if (insertIfAbsent && !existing) {
-            const success = await this.insert(user, { ...data, id: user })
-            if (!success)
-                console.warn(`Insert ${user} with data:`, data, `but not successfully`)
-            return true
-        } else if (existing) {
-            // update if present
-            existing.create({ ...existing, ...data, id: user })
-            await existing.save()
-            return true
-        }
-        return false
+    update (
+        jid: string,
+        data: Object | ChatPrivateStore | ChatGroupStore |
+            ((chat: ChatPrivateStore | ChatGroupStore | Partial<ChatPrivateStoreSchema> | Partial<ChatGroupStoreSchema>) => void | Promise<void>),
+        insertIfAbsent?: boolean | undefined
+    ) {
+        const filename = sanitize(jidNormalizedUser(jid))
+        return chatsStoreMutex.mutex(
+            filename,
+            ActionType.READ | ActionType.WRITE,
+            async () => {
+                const existing = await this._get(filename)
+                // insert if absent
+                if (insertIfAbsent && !existing) {
+                    const isFn = typeof data === 'function'
+                    const obj = !isFn ? data : {}
+                    if (isFn) {
+                        await data(obj)
+                    }
+                    const success = await this._insert(filename, obj)
+                    if (!success)
+                        console.warn(`Insert ${jid} with data:`, data, `but not successfully`)
+                    return true
+                    // update if present
+                } else if (existing) {
+                    if (typeof data === 'function') {
+                        await data(existing)
+                    } else {
+                        existing.create({ ...existing, ...data })
+                    }
+                    await existing._save()
+                    return true
+                }
+                return false
+            }
+        )
     }
 
-    async get (user: string) {
-        const filename = sanitize(jidNormalizedUser(user))
-        return await keyedMutex.mutex(filename, ActionType.READ, this, this._get.bind(this, user, filename))
-
+    get (jid: string) {
+        const filename = sanitize(jidNormalizedUser(jid))
+        return chatsStoreMutex.mutex(filename, ActionType.READ, this._get.bind(this, filename))
     }
 
-    async _get (user: string, filename: string): Promise<ChatGroupStore | ChatPrivateStore | null> {
-        const data = await this.read(filename)
+    async _get (filename: string): Promise<ChatPrivateStore | ChatGroupStore | null> {
+        const data = chatsStoreCache.get(filename) ?? await this.read(filename)
         if (!data) return null
-        const isGroup = (data && 'id' in data && typeof data.id === 'string' && data.id.endsWith('@g.us'))
-            || user.endsWith('@g.us')
+        const isGroup = filename.endsWith('@g.us')
         const chat = new (isGroup ? ChatGroupStore : ChatPrivateStore)(filename, this)
-        chat.setId(user)
         chat.create(data)
+        chatsStoreCache.set(filename, await chat.verify())
         return chat
     }
 }

@@ -24,16 +24,17 @@ export default class Config {
         author: z.string().optional().default(DEFAULT_AUTHOR)
     })
 
+    static readonly _schemaDonations = z.record(z.string(), z.string())
+
     static readonly _schema = z.object({
         owners: z.array(Config._schemaOwner),
-        sticker: Config._schemaSticker
+        sticker: Config._schemaSticker,
+        donations: Config._schemaDonations
     })
 
     owners: z.infer<typeof Config._schema>['owners'] = []
-    sticker: z.infer<typeof Config._schema>['sticker'] = { 
-        packname: DEFAULT_PACKNAME, 
-        author: DEFAULT_AUTHOR
-    }
+    sticker!: z.infer<typeof Config._schema>['sticker']
+    donations!: z.infer<typeof Config._schema>['donations']
 
     #path: string
     constructor(path = './config.yaml') {
@@ -44,11 +45,11 @@ export default class Config {
         if (!fs.existsSync(this.#path)) await this.save()
         const config = yaml.load(await fs.promises.readFile(this.#path, 'utf-8'))
         this.create(config as Object)
-        this.verify()
+        this.verifySync()
     }
+
     async save () {
-        this.verify()
-        const data = yaml.dump(JSON.parse(JSON.stringify(this)))
+        const data = yaml.dump(await this.verify())
         await fs.promises.writeFile(this.#path, data)
     }
 
@@ -56,13 +57,16 @@ export default class Config {
         const data: Partial<z.infer<typeof Config._schema>> = Config._schema.nullish().parse(obj) || {}
         for (const key in data) {
             if (data[key as keyof z.infer<typeof Config._schema>] == undefined) continue
-            if (!(key in this))
-                console.warn(`Property ${key} doesn't exist in '${Config.name}', but trying to insert with ${data}`)
             // @ts-ignore
             this[key as keyof z.infer<typeof Config._schema>] = data[key as keyof z.infer<typeof Config._schema>]
         }
     }
+
     verify () {
+        return Config._schema.parseAsync(this)
+    }
+
+    verifySync() {
         return Config._schema.parse(this)
     }
 }

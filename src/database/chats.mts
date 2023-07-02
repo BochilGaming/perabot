@@ -1,13 +1,20 @@
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
-import { data, Database, IData, IDatabase } from './database.mjs'
+import { data, Database, } from './database.mjs'
 import sanitize from 'sanitize-filename'
 import { z } from 'zod'
 import DBKeyedMutex, { ActionType } from './mutex.mjs'
 import { LOGGER } from '../lib/logger.mjs'
+import NodeCache from 'node-cache'
 
-const keyedMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'databases-chats' }))
+const chatsMutex = new DBKeyedMutex(LOGGER.child({ mutex: 'databases-chats' }))
+const chatsCache = new NodeCache({
+    stdTTL: 2 * 60,
+    checkperiod: 3 * 60,
+    useClones: false
+})
 
-export class ChatData extends data implements IData, z.infer<typeof ChatData._schema> {
+type ChatSchema = z.infer<typeof ChatData._schema>
+export class ChatData extends data<ChatSchema> implements ChatSchema {
     static readonly _schema = z.object({
         banned: z.boolean().default(false)
     })
@@ -26,7 +33,7 @@ export class ChatData extends data implements IData, z.infer<typeof ChatData._sc
         for (const key in data) {
             if (data[key as keyof z.infer<typeof ChatData._schema>] == undefined) continue
             if (!(key in this))
-                console.warn(`Property ${key} doesn't exist in '${ChatData.name}', but trying to insert with ${data}`)
+                console.warn(`Property ${key} doesn't exist in '${ChatData.name}', but trying to insert with ${data[key as keyof z.infer<typeof ChatData._schema>]} `)
             // ? Idk 
             // @ts-ignore
             this[key] = data[key]
@@ -34,40 +41,77 @@ export class ChatData extends data implements IData, z.infer<typeof ChatData._sc
     }
 
     verify () {
+        return ChatData._schema.parseAsync(this)
+    }
+
+    verifySync () {
         return ChatData._schema.parse(this)
     }
 
-    async save () {
-        return await keyedMutex.mutex(this._filename, ActionType.WRITE, this,  this._save.bind(this))
+    save () {
+        return chatsMutex.mutex(this._filename, ActionType.WRITE, this._save.bind(this))
     }
 
+    /**
+    * Use `save` instead of `_save`
+    */
     async _save () {
-        await this._db.save(this._filename, this.verify())
+        const id = this._filename
+        const data = await this.verify()
+        await this._db.save(id, data)
+        chatsCache.set(id, data)
     }
 
     saveSync () {
-        this._db.saveSync(this._filename, this.verify())
+        this._db.saveSync(this._filename, this.verifySync())
     }
 
 }
-export class ChatsDatabase extends Database implements IDatabase<ChatData> {
+export class ChatsDatabase extends Database<ChatData> {
     constructor(folder: string = './databases/chats') {
         super(folder)
     }
-    insert (key: string, data: Object | ChatData, ifAbsent?: boolean | undefined): Promise<boolean> {
+
+    insert (jid: string, data: Object | ChatData, ifAbsent?: boolean | undefined): Promise<boolean> {
         throw new Error('Method not implemented.')
-    }
-    update (key: string, data: Object | ChatData, insertIfAbsent?: boolean | undefined): Promise<boolean> {
-        throw new Error('Method not implemented.')
-    }
-    async get (user: string) {
-        const filename = sanitize(jidNormalizedUser(user))
-        return await keyedMutex.mutex(filename, ActionType.READ, this, this._get.bind(this, filename))
     }
 
+    update (
+        jid: string,
+        data: Object | ChatData | ((chat: ChatData) => void | Promise<void>)
+    ): Promise<boolean> {
+        const filename = sanitize(jidNormalizedUser(jid))
+        return chatsMutex.mutex(
+            filename,
+            ActionType.READ | ActionType.WRITE,
+            async () => {
+                const chat = await this._get(filename)
+                if (typeof data === 'function') {
+                    await data(chat)
+                } else {
+                    chat.create(data)
+                }
+                await chat._save()
+                return true
+            }
+        )
+    }
+
+    get (jid: string) {
+        const filename = sanitize(jidNormalizedUser(jid))
+        return chatsMutex.mutex(filename, ActionType.READ, this._get.bind(this, filename))
+    }
+
+    /**
+     * Use `get` instead of `_get`
+     */
     async _get (filename: string) {
         const chat = new ChatData(filename, this)
-        chat.create(await this.read(filename))
+        const cache = chatsCache.get<ChatSchema>(filename)
+        chat.create(cache ?? await this.read(filename))
+        chatsCache.set(filename, chat.verify())
         return chat
     }
 }
+
+export { chatsMutex }

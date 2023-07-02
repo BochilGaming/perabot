@@ -5,7 +5,7 @@ import { tiktokdl } from '@bochilteam/scraper'
 
 export default class ttdl implements MessageablePlugin, CommandablePlugin {
     readonly SID = Buffer.from('ttdl').toString('base64url')
-    readonly URL_REGEX = /\bhttps?:\/\/(?:m|www|vm)\.tiktok\.com\/\S*?\b(?:(?:(?:usr|v|embed|user|video)\/|\?shareId=|\&item_id=)(\d+)|(?=\w{7})(\w*?[A-Z\d]\w*)(?=\s|\/$))\b/gm
+    readonly URL_REGEX = /\bhttps?:\/\/(?:m|www|v[mt])\.tiktok\.com\/\S*?\b(?:(?:(?:usr|v|embed|user|video)\/|\?shareId=|\&item_id=)(\d+)|(?=\w{7})(\w*?[A-Z\d]\w*)(?=\s|\/$))\b/gm
     readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
     readonly MSG = {
         URL: `Invalid URL, reply to this message and send tiktok video URL to download video!${readMore}\n\n_sid: ${this.SID}_`

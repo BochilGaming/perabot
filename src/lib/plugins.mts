@@ -21,7 +21,7 @@ export default class Plugins {
     watcher = new Map<string, fs.FSWatcher>()
     plugins = new Map<string, Plugin>()
     private logger
-    private _reloadQueue = new Map<string, AbortController>()
+    // private _reloadQueue = new Map<string, AbortController>()
     constructor(_logger = LOGGER) {
         this.logger = _logger.child({ class: 'plugin' })
     }
@@ -64,14 +64,14 @@ export default class Plugins {
         return fs.watch(folder, async (event, filename) => {
             if (!this.filter(filename)) return
 
-            const previousAbort = this._reloadQueue.get(filename)
+            // const previousAbort = this._reloadQueue.get(filename)
             // sometimes watch is triggered twice
-            if (previousAbort) {
-                previousAbort.abort()
-            }
-            const abort = new AbortController()
-            const signal = abort.signal
-            this._reloadQueue.set(filename, abort)
+            // if (previousAbort) {
+            //     previousAbort.abort()
+            // }
+            // const abort = new AbortController()
+            // const signal = abort.signal
+            // this._reloadQueue.set(filename, abort)
 
             // file without 'file://' prefix
             let file = path.join(folder, filename)
@@ -95,7 +95,7 @@ export default class Plugins {
                     // If signal is aborted -- other reload is being triggered, cancel to load plugin
                     // so the next reload takes care of loading the plugin
                     // because of that, plugin file that are loaded is always up-to-date
-                    if (signal.aborted) throw new Error('Operation canceled!')
+                    // if (signal.aborted) throw new Error('Operation canceled!')
                     // load the plugin file
                     await this.addPlugin(file)
                 }
@@ -105,9 +105,9 @@ export default class Plugins {
                 this.plugins.delete(file)
             } finally {
                 // Remove abort listener
-                abort.abort()
+                // abort.abort()
                 // Remove from Queue
-                this._reloadQueue.delete(filename)
+                // this._reloadQueue.delete(filename)
             }
         })
     }

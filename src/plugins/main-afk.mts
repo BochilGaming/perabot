@@ -11,11 +11,8 @@ export default class afk implements CommandablePlugin {
         m,
         text
     }: PluginCmdParam) {
-        const user = await users.get(m.sender)
-        user.afk = +new Date
-        user.afkReason = text
         const [_, name] = await Promise.all([
-            user.save(),
+            users.update(m.sender, { afk: Date.now(), afkReason: text }),
             conn.getName(m.sender)
         ])
 
