@@ -11,7 +11,7 @@ export default class igdl implements MessageablePlugin, CommandablePlugin {
     } as const
 
     command = /^i(g|nstagram)(d(l|ownload(er)?))?$/
-    help = ['instagram <URL>']
+    help = ['instagram <url>']
     tags = ['downloader']
 
     async onMessage ({ m }: PluginMsgParam) {

@@ -114,4 +114,5 @@ export class ChatsDatabase extends Database<ChatData> {
     }
 }
 
+export type { ChatSchema }
 export { chatsMutex }

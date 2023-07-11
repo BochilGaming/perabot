@@ -1,5 +1,5 @@
 import { CommandablePlugin, PluginCmdParam } from '../lib/plugins.mjs'
-import { plugin } from '../index.mjs'
+import { config, plugin } from '../index.mjs'
 import fs from 'fs'
 import path from 'path'
 import CJS from '../lib/cjs.mjs'
@@ -8,7 +8,11 @@ const __dirname = CJS.createDirname(import.meta)
 
 const TAGS: { [Key: string]: string } = {
     'main': 'Main Menu',
-    'converter': 'Convert',
+    'games': 'Games',
+    'converter': 'Converter',
+    'tools': 'Tools',
+    'downloader': 'Downloader',
+    'youtube': 'Youtube',
     '': 'No Category'
 }
 const DEFAULT_MENU = {
@@ -19,6 +23,7 @@ const DEFAULT_MENU = {
 │ 📅 Tanggal: *%week, %date*
 │ 🕰️ Waktu: *%time*
 │
+│ 📢 Community: ${config.community}
 ╰────
     %readmore `.trimStart(),
     header: '╭─「 %category 」',
@@ -66,10 +71,11 @@ export default class menu implements CommandablePlugin {
         const helps = ([...plugin.plugins.entries()]
             .filter(([_, plugin]) => !plugin.disabled && 'onCommand' in plugin && typeof plugin.onCommand === 'function') as [string, CommandablePlugin][])
             .map(([_, plugin]) => {
-
-                if ('tags' in plugin && Array.isArray(plugin.tags))
+                if ('tags' in plugin && plugin.tags) {
+                    if (typeof plugin.tags === 'string') plugin.tags = [plugin.tags]
                     for (const tag of plugin.tags)
                         if (!(tag in unorderedTags)) unorderedTags[tag] = tag
+                }
 
                 // Object.keys(unorderedTags).sort().reduce((_: { [Key: string]: string }, key) => {
                 //     _[key] = TAGS[key] = unorderedTags[key]
@@ -98,7 +104,7 @@ export default class menu implements CommandablePlugin {
                 npmdesc: _package.description,
                 version: _package.version,
                 p: usedPrefix,
-                readmore: readMore, 
+                readmore: readMore,
                 week, date, time, name
             }
 

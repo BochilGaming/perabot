@@ -12,14 +12,16 @@ import baileys, {
     MiscMessageGenerationOptions,
     proto as _proto,
     WASocket,
-    WAProto
+    WAProto,
+    getStream
 } from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import pino from 'pino'
+import {fileTypeStream} from 'file-type'
 import { z } from 'zod'
 import Store from '../store/store.mjs'
 import Config from './config.mjs'
-
+import { toAudio, toPtt } from './converter/audio.mjs'
 // @ts-ignore 
 const proto: typeof _proto = baileys.proto
 
@@ -79,7 +81,15 @@ export default class Helper {
     public static connection (sock: WASocket, store: Store): HelperConn {
         return {
             ...sock,
-            reply (jid, msg, quoted, options) {
+            async reply (jid, msg, quoted, options) {
+                // TODO: send audio as ptt
+                if ('audio' in msg && msg.audio) {
+                    const { stream } = await getStream(msg.audio)
+                    const data = await fileTypeStream(stream)
+                    const isPtt = msg.ptt
+                    msg.audio = { stream: await (isPtt ? toPtt : toAudio)(data, data.fileType?.ext || 'mp3') }
+                    msg.mimetype = isPtt ? 'audio/ogg; codecs=opus' : 'audio/mpeg'
+                }
                 return this.sendMessage(jid, msg, { quoted, ...options })
             },
             async getName (jid) {
@@ -112,7 +122,7 @@ export default class Helper {
                 return 'verifiedName' in chat && typeof chat.verifiedName === 'string' ? chat.verifiedName
                     : 'notify' in chat && typeof chat.notify === 'string' ? chat.notify
                         : 'name' in chat && typeof chat.name === 'string' ? chat.name
-                            : parsePhoneNumber('+' + jidDecode(jid)!.user).number!.international
+                            : parsePhoneNumber('+' + user!.user).number!.international
             },
             async sendContacts (jid, data, quoted, opts) {
                 const contacts = await Promise.all(data.map(async ({

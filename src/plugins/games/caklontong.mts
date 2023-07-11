@@ -4,7 +4,7 @@ import * as db from '../../database/index.mjs'
 import { caklontong as games } from '../../lib/games.mjs'
 
 export default class caklontong implements CommandablePlugin, MessageablePlugin {
-    static readonly SID = Buffer.from('calo').toString('base64url') 
+    static readonly SID = Buffer.from('calo').toString('base64url')
     static readonly REPLY_REGEX = new RegExp(`_sid: ${this.SID}_`)
 
     static xpReward = 4999
@@ -20,7 +20,7 @@ export default class caklontong implements CommandablePlugin, MessageablePlugin 
         const id = m.chat
         const existingGame = games.get(id)
         if (!existingGame) {
-            return await m.reply(`Caklontong question is over!`)
+            return await m.reply(`Cak Lontong question is over!`)
         }
         if (m.text.trim().toLowerCase() === existingGame.data.jawaban.trim().toLowerCase()) {
             await Promise.all([
@@ -36,11 +36,11 @@ export default class caklontong implements CommandablePlugin, MessageablePlugin 
         }
     }
 
-    async onCommand ({ m, conn, usedPrefix }: PluginCmdParam) {
+    async onCommand ({ m, usedPrefix }: PluginCmdParam) {
         const id = m.chat
         const existingGame = games.get(id)
         if (existingGame) {
-            return await conn.reply(m.chat, { text: 'There are still Caklontong questions that haven\'t been answered in this chat!' })
+            return await m.reply({ text: 'There are still Cak Lontong questions that haven\'t been answered in this chat!' })
         }
         const gameData = await getCaklontongData()
         const caption = `
@@ -48,8 +48,8 @@ ${gameData.soal}
 
 *⌛Timeout:* ${(caklontong.timeoutMs / 1000).toFixed(2)} seconds
 *🎇Rewards:* ${caklontong.xpReward} xp
-To answer an Caklontong question, type the answer by *replying to this message!*
-For hint type ${usedPrefix}hint by replying to this message!
+📌 To answer an Cak Lontong question, type the answer by *replying to this message!*
+For hint type ${usedPrefix}hint by *replying to this message!*
 ${readMore}
 _sid: ${caklontong.SID}_
 `.trim()
@@ -59,9 +59,8 @@ _sid: ${caklontong.SID}_
             message,
             timeout: setTimeout(async () => {
                 const existingGame = games.get(id)
-                if (existingGame) {
-                    return await message.reply(`Time is up, and the answer is '${existingGame.data.jawaban}'\n${existingGame.data.deskripsi}`)
-                }
+                if (!existingGame) return
+                await message.reply(`Time is up, and the answer is '${existingGame.data.jawaban}'\n${existingGame.data.deskripsi}`)
                 games.delete(id)
             }, caklontong.timeoutMs)
         })

@@ -31,6 +31,12 @@ export class UserData extends data<z.infer<typeof UserData._schema>> implements 
         level: z.number().min(0).default(0),
         limit: z.number().min(0).default(10),
 
+        money: z.number().default(0),
+
+        lastdaily: z.number().default(-1),
+        lastweekly: z.number().default(-1),
+        lastmonthly: z.number().default(-1),
+
         autoLevelup: z.boolean().default(true),
         registered: z.literal(true),
     }).merge(UserData._schemaBase.omit({ registered: true }))
@@ -43,6 +49,12 @@ export class UserData extends data<z.infer<typeof UserData._schema>> implements 
     level = 0
     xp = 0
     limit = 10
+
+    money = 0
+
+    lastdaily = -1
+    lastweekly = -1
+    lastmonthly = -1
 
     permission = 0
     banned = false
@@ -129,4 +141,5 @@ export class UsersDatabase extends Database<UserData> {
     }
 }
 
+export type { UserSchema }
 export { usersMutex }

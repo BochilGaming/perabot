@@ -12,8 +12,12 @@ export default class Listeners {
     constructor(public connection: Required<Connection>) { }
 
     async onMessage (chatUpdate: BaileysEventMap['messages.upsert']) {
-        if (chatUpdate.messages.length > 1)
-            console.log(chatUpdate)
+        // if (chatUpdate.messages.length > 1) {
+        //     console.log('Type', chatUpdate.type)
+        //     for (const message of chatUpdate.messages) {
+        //         console.log(message)
+        //     }
+        // }
         // last message
         const m = Helper.message(chatUpdate.messages[chatUpdate.messages.length - 1], {
             conn: this.connection.sock,
@@ -38,14 +42,14 @@ export default class Listeners {
                 .map((owner) => jidNormalizedUser(!owner.includes('@s.whatsapp.net') ? owner.concat('@s.whatsapp.net') : owner))
                 .includes(m.sender)
 
-            // not efficient because always read data from disk if get message
-            const userData = await users.get(m.sender)
+            const { permission, banned, registered } = await users.get(m.sender)
             const permissionManager = new PermissionManager({
-                permission: userData.permission,
+                permission,
                 isAdmin,
                 isBotAdmin,
                 isOwner,
-                banned: userData.banned
+                banned,
+                registered
             })
 
             for (const [pluginName, pluginModule] of plugin.plugins.entries()) {
@@ -110,7 +114,10 @@ export default class Listeners {
                 if (pluginModule.permissions) {
                     const isAccessGranted = permissionManager.check(pluginModule.permissions)
                     if (isAccessGranted !== true) {
-                        await m.reply(`Access not granted because invalid permissions *${isAccessGranted.map((permission) => PermissionsFlags[permission]).join(', ')}*`)
+                        await Promise.all([
+                            m.reply(`Access not granted because invalid permissions *${isAccessGranted.map((permission) => PermissionsFlags[permission]).join(', ')}*`),
+                            isAccessGranted.includes(PermissionsFlags.Register) ? m.reply(`To register type *${usedPrefix}register*`) : Promise.resolve()
+                        ])
                         continue
                     }
                 }

@@ -2,7 +2,7 @@
 import webp from 'node-webpmux'
 import crypto from 'crypto'
 import got from 'got'
-import Ffmpeg from './ffmpeg.mjs'
+import { FfmpegBuffer } from './ffmpeg.mjs'
 import { Sticker as WSF } from 'wa-sticker-formatter'
 
 export interface StickerOptions {
@@ -24,7 +24,7 @@ export async function sticker (img: Buffer | null, url?: string | URL) {
     if (url) {
         buffer = await getBuffer(url)
     }
-    return await Ffmpeg(buffer, [
+    return await FfmpegBuffer(buffer, [
         '-vf', 'scale=512:512:flags=lanczos:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000,setsar=1'
     ], 'jpeg', 'webp')
 }

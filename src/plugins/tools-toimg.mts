@@ -6,7 +6,7 @@ export default class toimg implements CommandablePlugin, MessageablePlugin {
 
   command = /^toim(age|g)?$/
   help = ['toimg']
-  tags = ['tools']
+  tags = ['tools', 'converter']
 
   async onMessage ({ m }: PluginMsgParam) {
     if (!m.quoted || !m.quoted.fromMe || !this.REPLY_REGEX.test(m.quoted.text)) return

@@ -8,7 +8,9 @@ import PermissionManager, { PermissionsFlags } from './permissions.mjs'
 import CommandManager from './command.mjs'
 import { LOGGER } from './logger.mjs'
 import assert from 'assert'
+import chalk from 'chalk'
 
+const __dirname = CJS.createDirname(import.meta)
 
 interface AddFolderOptions {
     /** if `recursive` is true, it will not only read files in that folder but also read files from child folders 
@@ -41,6 +43,7 @@ export default class Plugins {
 
         // Read files from that folder/directory
         const files = await fs.promises.readdir(folder)
+        this.logger.debug({ resolved, files }, 'load plugins folder!')
         const loaded = files.map(async (file) => {
             const filename = path.join(resolved, file)
             if (opts.recursive) {
@@ -50,7 +53,7 @@ export default class Plugins {
                     return await this.addFolder(filename, opts)
             }
             // add plugin file
-            return await this.addPlugin(filename)
+            await this.addPlugin(filename)
         })
 
         // Watch the file if it is being changed
@@ -97,7 +100,9 @@ export default class Plugins {
                     // because of that, plugin file that are loaded is always up-to-date
                     // if (signal.aborted) throw new Error('Operation canceled!')
                     // load the plugin file
-                    await this.addPlugin(file)
+                    const plugin = await this.addPlugin(file)
+                    if (plugin)
+                        this._print(file, plugin)
                 }
             } catch (e) {
                 this.logger.error(e, `error require plugin '${file}'`)
@@ -112,25 +117,61 @@ export default class Plugins {
         })
     }
 
-    private async addPlugin (filename: string) {
-        if (!this.filter(filename)) return
+    private async addPlugin (filename: string): Promise<Plugin | null> {
+        if (!this.filter(filename)) return null
         // add prefix 'file://'
         const file = CJS.createFilename(filename)
 
         // latest changes will be imported/used
         // Maybe this cause memory leak - ???
         const load = await import(file + '?d' + new Date)
+        const isHaveDefault = 'default' in load && load.default
         // if it has 'default' property use it
-        const module = 'default' in load && load.default ? load.default : load
+        // if it's not there, use first exported property of module
+        const fn = isHaveDefault ? load.default : load[Object.keys(load)[0]]
+        if (!isHaveDefault) {
+            this.logger.warn({ load, fn }, `load plugin '${file}' but doesn't have default export! Using '${fn.name}'... Prefer to have a default export in your plugin code`)
+        }
         // check if it has prototype, if it has mean it is a classes so call the class
-        const plugin = 'prototype' in module ? new module() : module
-
+        const plugin = 'prototype' in fn ? new fn() : fn
         this.plugins.set(filename, plugin)
+        return plugin
     }
 
     filter (filename: string | null): filename is string {
         // only allow file with '.mts' extension
         return /(\.mts)$/.test(filename ?? '')
+    }
+
+    print () {
+        for (const pluginEntry of this.plugins.entries()) {
+            this._print(...pluginEntry)
+        }
+    }
+
+    _print (file: string, plugin: Plugin) {
+        const filename = file.replace(path.join(__dirname, '../../'), '')
+            .replace(/\\/g, '/')
+        const sid = 'constructor' in plugin && 'SID' in plugin.constructor && plugin.constructor.SID
+        const name = 'constructor' in plugin && plugin.constructor.name
+        const disabled = plugin.disabled
+
+        const command = 'command' in plugin && 'onCommand' in plugin && plugin.command
+        const beforeable = 'beforeCommand' in plugin
+        const messageable = 'onMessage' in plugin
+
+        console.log('-', (disabled ? chalk.bgRed : chalk.bgBlue)(filename))
+        console.group()
+        console.log('• Name:', name ?
+            (command ? chalk.yellow : beforeable ? chalk.greenBright
+                : messageable ? chalk.green
+                    : chalk.reset)(name)
+            : chalk.underline.redBright('unknown'))
+        if (sid)
+            console.log('• SID:', chalk.underline.gray(sid))
+        if (command)
+            console.log('• Command:', chalk.red(command))
+        console.groupEnd()
     }
 }
 
@@ -141,7 +182,7 @@ export interface CommandablePlugin extends PluginBase {
     command: string | RegExp | (string | RegExp)[]
     customPrefix?: string | RegExp | (string | RegExp)[]
     help: string[] | string
-    tags?: string[]
+    tags?: string[] | string
     permissions?: PermissionsFlags[] | PermissionsFlags
     onCommand (param: PluginCmdParam): Promise<any> | any
 }
@@ -157,11 +198,11 @@ export interface PluginBaseParam {
     connection: Required<Connection>
     conn: HelperConn
     m: HelperMsg
+    permissionManager: PermissionManager
 }
 export interface PluginMsgParam extends PluginBaseParam {
     chatUpdate: BaileysEventMap['messages.upsert']
 
-    permissionManager: PermissionManager
     groupMetadata: GroupMetadata | undefined
     participants: GroupParticipant[]
     isOwner: boolean
@@ -174,7 +215,6 @@ export interface PluginBeforeCmdParam extends PluginBaseParam {
     commandManager: CommandManager
     matchesPrefix: ReturnType<CommandManager['matchesPrefix']>
 
-    permissionManager: PermissionManager
     groupMetadata: GroupMetadata | undefined
     participants: GroupParticipant[]
     isOwner: boolean
@@ -192,7 +232,6 @@ export interface PluginCmdParam extends PluginBaseParam {
     text: string
     args: string[]
 
-    permissionManager: PermissionManager
     groupMetadata: GroupMetadata | undefined
     participants: GroupParticipant[]
     isOwner: boolean

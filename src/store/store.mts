@@ -5,6 +5,7 @@ import pino from 'pino'
 import { HelperConn } from '../lib/helper.mjs'
 import {
     GroupMetadata,
+    WAMessageStubType,
     jidNormalizedUser,
     toNumber,
     updateMessageWithReaction,
@@ -18,6 +19,8 @@ export default class Store {
     #logger?: pino.Logger
 
     chats: ChatsStore
+    /** List of chats that will receive broadcast messages when the broadcast command is triggered */
+    chatsIndex: Set<String>
     messages: MessagesStore
 
     constructor(baseFolder: string = './store', logger?: pino.Logger) {
@@ -28,6 +31,7 @@ export default class Store {
         this.#logger = logger?.child({ class: 'store' })
 
         this.chats = new ChatsStore(this.#chatsFolder)
+        this.chatsIndex = new Set<String>()
         this.messages = new MessagesStore(this.#messagesFolder)
 
         this.initalizeFolder()
@@ -70,7 +74,7 @@ export default class Store {
             if (events['contacts.upsert']) {
                 const contacts = events['contacts.upsert']
                 await Promise.all(contacts.map((contact) => {
-                    return this.chats.update(contact.id!, { ...contact, isContact: true }, true)
+                    return this.chats.update(contact.id, { ...contact, isContact: true }, true)
                 }))
             }
 
@@ -87,6 +91,7 @@ export default class Store {
                 const newChats = events['chats.upsert']
                 // TODO: handle 'messages'
                 await Promise.all(newChats.map((newChat) => {
+                    this.chatsIndex.add(newChat.id)
                     return this.chats.update(newChat.id, newChat, true)
                 }))
             }
@@ -95,6 +100,7 @@ export default class Store {
                 const updates = events['chats.update']
                 // TODO: handle 'tcToken' update
                 await Promise.all(updates.map(async (update) => {
+                    this.chatsIndex.add(update.id!)
                     await this.chats.update(update.id!, (chat) => {
                         if (update.unreadCount! > 0)
                             update.unreadCount! += 'unreadCount' in chat && typeof chat.unreadCount === 'number' && chat.unreadCount ? chat.unreadCount : 0
@@ -118,18 +124,19 @@ export default class Store {
                     case 'notify': {
                         await Promise.all(newMessages.map(async (msg) => {
                             const id = msg.key.id!
-                            // if (!id) {
-                            //     this.#logger?.warn(msg, 'got message but without id!')
-                            //     return false
-                            // }
                             const promises: Promise<any>[] = [this.messages.update(id, msg, true)]
                             // update name 
                             const name = msg.pushName || msg.verifiedBizName
                             const jid = msg.key.remoteJid!
-                            if (name && jid.endsWith('@s.whatsapp.net')) {
-                                promises.push(this.chats.update(jid, (user) => {
-                                    if ('name' in user) user.name = name ?? user.name
-                                }, true))
+                            if (jid.endsWith('@s.whatsapp.net')) {
+                                if (![WAMessageStubType.CIPHERTEXT].includes(msg.messageStubType!)) {
+                                    this.chatsIndex.add(jid)
+                                }
+                                if (name) {
+                                    promises.push(this.chats.update(jid, (user) => {
+                                        if ('name' in user) user.name = name ?? user.name
+                                    }, true))
+                                }
                             }
 
                             if (type === 'notify') {

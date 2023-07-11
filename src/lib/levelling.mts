@@ -4,9 +4,9 @@ import assert from 'assert'
 export default class Levelling {
     /**
      * Growth rate
-     * 2.4048752025159685
+     * 2.433585932572921
      */
-    static readonly growth = Math.pow(Math.PI / Math.E, 1.618) * Math.E * .70
+    static readonly growth = Math.pow(Math.PI / Math.E, 1.7) * Math.E * .70
     protected static multiplier = 0
 
     static setMultiplier (multiplier: number) {

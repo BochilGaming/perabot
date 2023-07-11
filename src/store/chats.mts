@@ -22,7 +22,7 @@ export class ChatPrivateStore extends data<ChatPrivateStoreSchema> implements Ch
         verifiedName: z.string().nullish(),
         imgUrl: z.string().nullish(),
         status: z.string().nullish(),
-        unreadCount: z.number().optional(),
+        unreadCount: z.number().nullish(),
         // Long
         conversationTimestamp: z.number().or(z.object({
             low: z.number(),
@@ -46,7 +46,7 @@ export class ChatPrivateStore extends data<ChatPrivateStoreSchema> implements Ch
     verifiedName?: Contact['verifiedName']
     imgUrl?: Contact['imgUrl']
     status?: Contact['status']
-    unreadCount?: number
+    unreadCount?: number | null
     conversationTimestamp?: number
 
     constructor(file: string, db: ChatsStore, obj?: Object | null) {
@@ -177,6 +177,7 @@ export class ChatGroupStore extends data<ChatGroupStoreSchema> implements ChatGr
     }
 }
 
+
 export class ChatsStore extends Database<ChatPrivateStore | ChatGroupStore> {
     constructor(folder: string = './store/chats') {
         super(folder)
@@ -263,4 +264,3 @@ export class ChatsStore extends Database<ChatPrivateStore | ChatGroupStore> {
         return chat
     }
 }
-

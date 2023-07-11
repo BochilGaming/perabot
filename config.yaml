@@ -24,3 +24,14 @@ donations:
   dana: '6285713964963'
   saweria: https://saweria.co/BochilGaming
   # other donations with format Record<string, string>
+
+# level multiplier, higher is harder to go to the next level
+multiplier: 30
+
+emoticons:
+  # not case-sensitive. All keys will be processed to lowercase
+  exp: 💫
+  level: 🧬
+  money: 💸
+
+community: https://chat.whatsapp.com/G9Z4h65krw7A0nOL1IgkMO

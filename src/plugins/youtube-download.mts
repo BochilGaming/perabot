@@ -32,39 +32,51 @@ export default class ytdl implements CommandablePlugin, MessageablePlugin {
             await this.download({ m, url })
 
         } else if (parseInt(state) == WaitingState.RESOLUTION) {
-            const totalChoice = parseInt(replied?.[4])
-            const url = /\*URL:\* (.*?)\n/m.exec(m.quoted.text)?.[1]
-            if (isNaN(totalChoice) || !url) {
-                m.reply(`
-Error in finding message metadata required for download (c=${totalChoice}:u=${url})
+            const maxChoice = parseInt(replied?.[4])
+            const url = /\URL:\* (.*?)\n/m.exec(m.quoted.text)?.[1]
+            if (isNaN(maxChoice) || !url) {
+                return m.reply(`
+Error in finding message metadata required for download (c=${maxChoice}:u=${url})
 ${this.MSG.URL}
 `.trim())
-                return
             }
             const number = parseInt(m.text)
-            if (isNaN(number) ||
-                number > totalChoice ||
-                number < 1) {
-                // better message?
-                m.reply('Invalid choice!')
-                return
+            if (isNaN(number)) {
+                return m.reply('Invalid choice!')
+            } else if (number < 1) {
+                return m.reply('The minimum number selected is 1!')
+            } else if (number > maxChoice) {
+                return m.reply(`The maximum number selected is ${maxChoice}!`)
             }
             const { thumbnail, video, audio, title } = await youtubedlv2(url)
             const videoLength = Object.keys(video).length
             const data = [...Object.values(video), ...Object.values(audio)]
-            // user number input is start with 1
-            const download = data[number - 1]
-            const link = await download.download()
-            const downloaded = got.stream(link, { responseType: 'buffer' })
-            await m.reply({
-                caption: `
+            // user number input starts with 1 but the Javascript array index begins with 0 
+            for (let index = number - 1;
+                index <= maxChoice;
+                index++) {
+                const download = data[index]
+                const isVideo = number <= videoLength
+                try {
+                    const link = await download.download()
+                    const downloaded = got.stream(link, { responseType: 'buffer' })
+                    await m.reply({
+                        caption: `
 *📌Title:* ${title}
 *🖻Thumbnail:* ${thumbnail}
-*URL:* ${url}
+*🔗URL:* ${url}
+*📀Quality:* ${download.quality}
 *🗎 Filesize:* ${download.fileSizeH}
 `.trim(),
-                ...(number <= videoLength ? { video: { stream: downloaded } } : { audio: { stream: downloaded } })
-            })
+                        ...(isVideo ? { video: { stream: downloaded } } : { audio: { stream: downloaded } })
+                    })
+                    break
+                } catch (e) {
+                    console.error(e)
+                    const isLast = index === maxChoice
+                    await m.reply(`Error downloading file at '${download.quality}' quality! ${!isLast ? 'Trying to download a lower-quality file...' : ''}`)
+                }
+            }
         }
     }
 
@@ -89,7 +101,7 @@ ${this.MSG.URL}
             caption: `
 *📌Title:* ${title}
 *🖻Thumbnail:* ${thumbnail}
-*URL:* ${url}
+*🔗URL:* ${url}
 
 *Select wich one:*
 ${data.map((data, index) => `

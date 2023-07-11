@@ -1,4 +1,4 @@
-import { jidDecode, jidNormalizedUser, WAMessageStubType, WAProto } from '@whiskeysockets/baileys'
+import { jidDecode, jidNormalizedUser, WAMessageStubType } from '@whiskeysockets/baileys'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import urlRegex from 'url-regex'
 import chalk from 'chalk'

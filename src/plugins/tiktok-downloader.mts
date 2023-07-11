@@ -12,7 +12,7 @@ export default class ttdl implements MessageablePlugin, CommandablePlugin {
     } as const
 
     command = /^tiktok(d(l|ownload(er)?))?$/
-    help = ['tiktok <URL>']
+    help = ['tiktok <url>']
     tags = ['downloader']
 
     async onMessage ({ m }: PluginMsgParam) {

@@ -1,18 +1,18 @@
 
 // WARNING: Change this can make permissions feature not working!
-// first 10 bit can be for making separate permission like kick, add, etc.
+// first 20 bit can be for making separate permission like kick, add, etc.
 // the further to the left the higher
 export enum PermissionsFlags {
     Banned = 0,
-    Member = 1 << 10,
-    Admin = (1 << 1) | PermissionsFlags.Member,
-    // only 1 higher from PermissionsFlags.Admin :v
-    BotAdmin = 0b11 | PermissionsFlags.Member,
+    Member = 1, // 0001 = 1
+    Register = (1 << 1) | PermissionsFlags.Member, // 0011 = 3
+    Admin = (1 << 2) | PermissionsFlags.Member, // 0101 = 5
+    BotAdmin = (1 << 3) | PermissionsFlags.Admin, // 1101 = 13
     // they also have the permission of the lower ranks
-    Premium = (1 << 10 << 1) | PermissionsFlags.Member,
-    Moderator = (1 << 10 << 4) | PermissionsFlags.Premium,
-    Host = (1 << 10 << 5) | PermissionsFlags.Moderator,
-    Owner = (1 << 10 << 6) | PermissionsFlags.Host
+    Premium = (1 << 20) | PermissionsFlags.Member,
+    Moderator = (1 << 28) | PermissionsFlags.Premium,
+    Host = (1 << 29) | PermissionsFlags.Register | PermissionsFlags.Moderator,
+    Owner = (1 << 30) | PermissionsFlags.Register | PermissionsFlags.Host
 }
 
 
@@ -22,15 +22,18 @@ export default class PermissionManager {
     private isAdmin = false
     private isOwner = false
     private isBanned = false
-    permissions = 0
+    private isRegistered = false
+    permissions = PermissionsFlags.Member
     constructor(opts: PermissionManagerOptions) {
         this.permissions = opts.permission
         this.isBanned = opts.banned
         this.isAdmin = opts.isAdmin
         this.isBotAdmin = opts.isBotAdmin
         this.isOwner = opts.isOwner
+        this.isRegistered = opts.registered
 
-        // Append data from options to a permission
+        // Append data from options to a permissions
+        this.permissions |= this.isRegistered ? PermissionsFlags.Register : 0
         this.permissions |= this.isOwner ? PermissionsFlags.Owner : 0
         this.permissions |= this.isBotAdmin ? PermissionsFlags.BotAdmin : 0
         this.permissions |= this.isAdmin ? PermissionsFlags.Admin : 0
@@ -65,4 +68,5 @@ export interface PermissionManagerOptions {
     isAdmin: boolean
     isOwner: boolean
     banned: boolean
+    registered: boolean
 }

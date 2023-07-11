@@ -1,4 +1,5 @@
 import { users } from '../../database/index.mjs'
+import { PermissionsFlags } from '../../lib/permissions.mjs'
 import { CommandablePlugin, PluginCmdParam } from '../../lib/plugins.mjs'
 
 export default class mining implements CommandablePlugin {
@@ -6,6 +7,7 @@ export default class mining implements CommandablePlugin {
     tags = ['rpg']
     help = 'rpg'
 
+    permissions = PermissionsFlags.Register
     disabled = true
 
     async onCommand ({ m }: PluginCmdParam) {
